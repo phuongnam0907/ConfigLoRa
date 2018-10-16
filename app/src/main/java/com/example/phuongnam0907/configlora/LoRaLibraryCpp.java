@@ -105,13 +105,24 @@ public class LoRaLibraryCpp {
     }
 
     PeripheralManager manager = PeripheralManager.getInstance();
-    private void regPin(Gpio pin, String namePin){
-        if (namePin.indexOf("BCM") < 0) namePin = "BCM" + namePin;
+    private void regPin(String SPI_CS_PIN, String SPI_MISO_PIN, String SPI_MOSI_PIN, String SPI_SCK_PIN, String ANT_EN_PIN, String RESET_PIN, String DIO0_PIN){
         try {
-            pin = manager.openGpio(namePin);
-            Log.d(TAG,"Name: " + pin.getName());
+            m_SPI_CS_PIN = manager.openGpio(SPI_CS_PIN);
+            m_SPI_MISO_PIN = manager.openGpio(SPI_MISO_PIN);
+            m_SPI_MOSI_PIN = manager.openGpio(SPI_MOSI_PIN);
+            m_SPI_SCK_PIN = manager.openGpio(SPI_SCK_PIN);
+            m_ANT_EN_PIN = manager.openGpio(ANT_EN_PIN);
+            m_RESET_PIN = manager.openGpio(RESET_PIN);
+            m_DIO0_PIN = manager.openGpio(DIO0_PIN);
+            Log.d(TAG,"Name: " + m_SPI_CS_PIN.getName() + " "
+                                    + m_SPI_MISO_PIN.getName() + " "
+                                    + m_SPI_MOSI_PIN.getName() + " "
+                                    + m_SPI_SCK_PIN.getName() + " "
+                                    + m_ANT_EN_PIN.getName() + " "
+                                    + m_RESET_PIN.getName() + " "
+                                    + m_DIO0_PIN.getName());
         } catch (IOException e) {
-            Log.e(TAG,"Cannot open the GPIO: " + namePin,e);
+            Log.e(TAG,"Cannot open the GPIO",e);
         }
     }
 
@@ -123,18 +134,24 @@ public class LoRaLibraryCpp {
         }
     }
 
-    private void pinMode (Gpio port, boolean bool){
-        if (bool == INPUT){
-            try {
-                port.setDirection(Gpio.DIRECTION_IN);
-                port.setActiveType(Gpio.ACTIVE_HIGH);//**CHECK AGAIN!!!**
-                // Register for all state changes
-                port.setEdgeTriggerType(Gpio.EDGE_BOTH);
-            } catch (IOException e){
-                e.printStackTrace();
-            }
-        } else try {
-            port.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+    private void pinMode(Gpio m_SPI_CS_PIN, Gpio m_SPI_MOSI_PIN, Gpio m_SPI_MISO_PIN, Gpio m_SPI_SCK_PIN, Gpio m_ANT_EN_PIN, Gpio m_RESET_PIN, Gpio m_DIO0_PIN){
+        try {
+            //Output Pin
+            m_SPI_CS_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+            m_SPI_MOSI_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+            m_SPI_SCK_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+            m_ANT_EN_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+            m_RESET_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+
+            //Input Pin
+            m_SPI_MISO_PIN.setDirection(Gpio.DIRECTION_IN);
+            m_DIO0_PIN.setDirection(Gpio.DIRECTION_IN);
+
+            m_SPI_MISO_PIN.setActiveType(Gpio.ACTIVE_LOW);
+            m_DIO0_PIN.setActiveType(Gpio.ACTIVE_LOW);
+
+            m_SPI_MISO_PIN.setEdgeTriggerType(Gpio.EDGE_FALLING);
+            m_DIO0_PIN.setEdgeTriggerType(Gpio.EDGE_FALLING);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -276,21 +293,23 @@ public class LoRaLibraryCpp {
     public void Initial(String SPI_CS_PIN, String SPI_MISO_PIN, String SPI_MOSI_PIN, String SPI_SCK_PIN, String ANT_EN_PIN, String RESET_PIN, String DIO0_PIN)
     //===========================
     {
-        regPin(m_SPI_CS_PIN,SPI_CS_PIN);
+        regPin(SPI_CS_PIN, SPI_MISO_PIN, SPI_MOSI_PIN, SPI_SCK_PIN, ANT_EN_PIN, RESET_PIN, DIO0_PIN);
+        /*regPin(m_SPI_CS_PIN,SPI_CS_PIN);
         regPin(m_SPI_MISO_PIN,SPI_MISO_PIN);
         regPin(m_SPI_MOSI_PIN,SPI_MOSI_PIN);
         regPin(m_SPI_SCK_PIN,SPI_SCK_PIN);
         regPin(m_ANT_EN_PIN,ANT_EN_PIN);
         regPin(m_RESET_PIN,RESET_PIN);
-        regPin(m_DIO0_PIN,DIO0_PIN);
+        regPin(m_DIO0_PIN,DIO0_PIN);*/
         // initialize the pins
-        pinMode(m_SPI_CS_PIN, OUTPUT);
+        pinMode(m_SPI_CS_PIN, m_SPI_MOSI_PIN, m_SPI_MISO_PIN, m_SPI_SCK_PIN, m_ANT_EN_PIN, m_RESET_PIN, m_DIO0_PIN);
+        /*pinMode(m_SPI_CS_PIN, OUTPUT);
         pinMode(m_SPI_MOSI_PIN, OUTPUT);
         pinMode(m_SPI_MISO_PIN, INPUT);
         pinMode(m_SPI_SCK_PIN, OUTPUT);
         pinMode(m_ANT_EN_PIN, OUTPUT);
         pinMode(m_RESET_PIN, OUTPUT);
-        pinMode(m_DIO0_PIN, INPUT);
+        pinMode(m_DIO0_PIN, INPUT);*/
         digitalWrite(m_DIO0_PIN, LOW);
         digitalWrite(m_RESET_PIN,LOW);
         delay(100);

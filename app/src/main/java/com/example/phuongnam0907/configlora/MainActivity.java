@@ -44,8 +44,8 @@ public class MainActivity extends Activity {
         TimerTask timerTask = new TimerTask() {
             @Override
             public void run() {
-                lora.Send(hello);
                 lora.InitialSend((byte) hello.length);
+                lora.Send(hello);
             }
         };
         timer.schedule(timerTask,5000, 5000);
