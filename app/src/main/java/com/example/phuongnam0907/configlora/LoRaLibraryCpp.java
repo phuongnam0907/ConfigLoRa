@@ -1,470 +1,425 @@
 package com.example.phuongnam0907.configlora;
 
-import android.os.Handler;
 import android.util.Log;
 
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManager;
+import com.google.android.things.pio.SpiDevice;
 
 import java.io.IOException;
 
 public class LoRaLibraryCpp {
 
-    private static final String TAG = "LoRa Library";
+    private static final String TAG = "LoRa: ";
 
-    // REGISTER
-    public static final byte REG_FIFO                    = (byte) 0x00;
-    public static final byte REG_OPMODE                  = (byte) 0x01;
-    public static final byte REG_FREQ23_16				 = (byte) 0x06;
-    public static final byte REG_FREQ15_8				 = (byte) 0x07;
-    public static final byte REG_FREQ7_0			     = (byte) 0x08;
-    public static final byte REG_PA_CONFIG               = (byte) 0x09;	// POWER AMPLIFIER CONFIG
-    public static final byte REG_PA_RAMP				 = (byte) 0x0A;
-    public static final byte REG_OCP					 = (byte) 0x0B;	//Over load current protection
-    public static final byte REG_FIFO_ADDR_PTR           = (byte) 0x0D;
-    public static final byte REG_FIFO_TX_BASE_ADDR       = (byte) 0x0E;
-    public static final byte REG_FIFO_RX_BASE_ADDR       = (byte) 0x0F;
-    public static final byte REG_FIFO_RX_CURRENT_ADDR    = (byte) 0x10;
-    public static final byte REG_IRQ_FLAGS_MASK          = (byte) 0x11;
-    public static final byte REG_IRQ_FLAGS               = (byte) 0x12;
-    public static final byte REG_RX_NB_BYTES             = (byte) 0x13;
-    public static final byte REG_MODEM_STAT              = (byte) 0x18;
-    public static final byte REG_MODEM_CONFIG1           = (byte) 0x1D;	//Bandwidth &Coding rate
-    public static final byte REG_MODEM_CONFIG2           = (byte) 0x1E;	//SpreadingFactor
-    public static final byte REG_RX_TIME_OUT			 = (byte) 0x1F;
-    public static final byte REG_PREAMBLE_LENGTH_H		 = (byte) 0x20;
-    public static final byte REG_PREAMBLE_LENGTH_L		 = (byte) 0x21;
-    public static final byte REG_PAYLOAD_LENGTH          = (byte) 0x22;
-    public static final byte REG_HOP_PERIOD              = (byte) 0x24;
-    public static final byte REG_DIO_MAPPING_1           = (byte) 0x40;
-    public static final byte REG_DIO_MAPPING_2           = (byte) 0x41;
-    public static final byte REG_LR_PADAC				 = (byte) 0x4D;
-    // MODES
-    public static final byte LORA_SLEEP             	 = (byte) 0x08;
-    public static final byte LORA_STANDBY            	 = (byte) 0x09;
-    public static final byte LORA_TX				     = (byte) 0x8B;
-    public static final byte LORA_RX_CONTINUOS      	 = (byte) 0x8D;
-    // LOW NOISE AMPLIFIER
-    public static final byte REG_LNA                     = (byte) 0x0C;
-    public static final byte LNA_MAX_GAIN                = (byte) 0x23; // 0010 0011
-    public static final byte LNA_OFF_GAIN                = (byte) 0x00;
-    public static final byte CR							 = (byte) 1;	//1=>4/5,2=>4/6,3=>4/7,4=>4/8
-    public static final byte Lora_Rate_Sel				 = (byte) 6;
-    public static final byte BandWidth_Sel				 = (byte) 7;
-    // INT
-    //public static final byte u8 unsigned byte
+    public static final String GPIO_RESET   = "BCM17";  //Pin 11
+    public static final String GPIO_CSS     = "BCM25";  //Pin 22
+    public static final String GPIO_DIO0    = "BCM4";   //Pin 7
 
-    public byte[] Freq433Table 			    = new byte[] {(byte)0x85,(byte)0x3b,(byte)0x13};	//433Mhz
-    public byte[] sx1278PowerTable		    = new byte[] {(byte)0xF0,(byte)0xF1,(byte)0xF2,(byte)0xF3,(byte)0xF4,(byte)0xF5,(byte)0xF6,(byte)0xF7,(byte)0xF8,(byte)0xF9,(byte)0xFA,(byte)0xFB,(byte)0xFC,(byte)0xFD,(byte)0xFE,(byte)0xFF};    //FF=20dbm,FC=17dbm,F9=14dbm,F6=11dbm
-    public byte[] sx1278SpreadFactorTable   = new byte[] {(byte)6,(byte)7,(byte)8,(byte)9,(byte)10,(byte)11,(byte)12};	//64/128/256/512/1024/2048/4096 chips/symble
-    public byte[] sx1278LoRaBwTable 		= new byte[] {(byte)0,(byte)1,(byte)2,(byte)3,(byte)4,(byte)5,(byte)6,(byte)7,(byte)8,(byte)9};	//7.8KHz,10.4KHz,15.6KHz,20.8KHz,31.2KHz,41.7KHz,62.5KHz,125KHz,250KHz,500KHz
+    private SpiDevice spiDevice;
+    private Gpio pinReset;  //BCM17 - pin 11
+    private Gpio pinD0;     //BCM4  - pin 7
+    private Gpio pinCSS;    //BCM25 - pin 22
 
-    // For Arduino 1.0 and earlier
-    /*
-    #if defined(ARDUINO) && ARDUINO >= 100
-    #include "Arduino.h"
-    #else
-    #include "WProgram.h"
-    #endif
-    */
+    // registers
+    public static final byte REG_FIFO                   = (byte) 0x00;
+    public static final byte REG_OP_MODE                = (byte) 0x01;
+    public static final byte REG_FRF_MSB                = (byte) 0x06;
+    public static final byte REG_FRF_MID                = (byte) 0x07;
+    public static final byte REG_FRF_LSB                = (byte) 0x08;
+    public static final byte REG_PA_CONFIG              = (byte) 0x09;
+    public static final byte REG_OCP                    = (byte) 0x0b;
+    public static final byte REG_LNA                    = (byte) 0x0c;
+    public static final byte REG_FIFO_ADDR_PTR          = (byte) 0x0d;
+    public static final byte REG_FIFO_TX_BASE_ADDR      = (byte) 0x0e;
+    public static final byte REG_FIFO_RX_BASE_ADDR      = (byte) 0x0f;
+    public static final byte REG_FIFO_RX_CURRENT_ADDR   = (byte) 0x10;
+    public static final byte REG_IRQ_FLAGS              = (byte) 0x12;
+    public static final byte REG_RX_NB_BYTES            = (byte) 0x13;
+    public static final byte REG_PKT_SNR_VALUE          = (byte) 0x19;
+    public static final byte REG_PKT_RSSI_VALUE         = (byte) 0x1a;
+    public static final byte REG_MODEM_CONFIG_1         = (byte) 0x1d;
+    public static final byte REG_MODEM_CONFIG_2         = (byte) 0x1e;
+    public static final byte REG_PREAMBLE_MSB           = (byte) 0x20;
+    public static final byte REG_PREAMBLE_LSB           = (byte) 0x21;
+    public static final byte REG_PAYLOAD_LENGTH         = (byte) 0x22;
+    public static final byte REG_MODEM_CONFIG_3         = (byte) 0x26;
+    public static final byte REG_FREQ_ERROR_MSB         = (byte) 0x28;
+    public static final byte REG_FREQ_ERROR_MID         = (byte) 0x29;
+    public static final byte REG_FREQ_ERROR_LSB         = (byte) 0x2a;
+    public static final byte REG_RSSI_WIDEBAND          = (byte) 0x2c;
+    public static final byte REG_DETECTION_OPTIMIZE     = (byte) 0x31;
+    public static final byte REG_INVERTIQ               = (byte) 0x33;
+    public static final byte REG_DETECTION_THRESHOLD    = (byte) 0x37;
+    public static final byte REG_SYNC_WORD              = (byte) 0x39;
+    public static final byte REG_INVERTIQ2              = (byte) 0x3b;
+    public static final byte REG_DIO_MAPPING_1          = (byte) 0x40;
+    public static final byte REG_VERSION                = (byte) 0x42;
+    public static final byte REG_PA_DAC                 = (byte) 0x4d;
 
-    private static final boolean LOW = false;
-    private static final boolean HIGH = true;
-    private static final boolean INPUT = false;
-    private static final boolean OUTPUT = true;
-    private Gpio  m_SPI_CS_PIN; //15
-    private Gpio  m_SPI_MISO_PIN; //12
-    private Gpio  m_SPI_MOSI_PIN; //13
-    private Gpio  m_SPI_SCK_PIN;  //14
-    private Gpio  m_DIO0_PIN;   //16
-    private Gpio  m_ANT_EN_PIN;   //4
-    private Gpio  m_RESET_PIN;  //5
+    // modes
+    public static final byte MODE_LONG_RANGE_MODE       = (byte) 0x80;
+    public static final byte MODE_SLEEP                 = (byte) 0x00;
+    public static final byte MODE_STDBY                 = (byte) 0x01;
+    public static final byte MODE_TX                    = (byte) 0x03;
+    public static final byte MODE_RX_CONTINUOUS         = (byte) 0x05;
+    public static final byte MODE_RX_SINGLE             = (byte) 0x06;
 
-    byte m_TXLength;   //32
-    byte m_RXLength;   //32
-    byte[] m_TXData = new byte[128];
-    byte[] m_RXData = new byte[128];
+    // PA config
+    public static final byte PA_BOOST                   = (byte) 0x80;
 
-    private void digitalWrite(Gpio name, boolean value) {
+    // IRQ masks
+    public static final byte IRQ_TX_DONE_MASK           = (byte) 0x08;
+    public static final byte IRQ_PAYLOAD_CRC_ERROR_MASK = (byte) 0x20;
+    public static final byte IRQ_RX_DONE_MASK           = (byte) 0x40;
+
+    public static final int MAX_PKT_LENGTH              = 255;
+    public static final int PA_OUTPUT_RFO_PIN           = 0;
+    public static final int PA_OUTPUT_PA_BOOST_PIN      = 1;
+
+    public static final boolean LOW                     = false;
+    public static final boolean HIGH                    = true;
+
+    /***************************************************************
+     *
+     *                           SET/GET DEVICE
+     *
+     ***************************************************************/
+
+    public static String getTAG() {
+        return TAG;
+    }
+
+    public static String getGpioReset() {
+        return GPIO_RESET;
+    }
+
+    public static String getGpioCss() {
+        return GPIO_CSS;
+    }
+
+    public static String getGpioDio0() {
+        return GPIO_DIO0;
+    }
+
+    public SpiDevice getSpiDevice() {
+        return spiDevice;
+    }
+
+    public void setSpiDevice(SpiDevice spiDevice) {
+        this.spiDevice = spiDevice;
+    }
+
+    public Gpio getPinReset() {
+        return pinReset;
+    }
+
+    public void setPinReset(Gpio pinReset) {
+        this.pinReset = pinReset;
+    }
+
+    public Gpio getPinD0() {
+        return pinD0;
+    }
+
+    public void setPinD0(Gpio pinD0) {
+        this.pinD0 = pinD0;
+    }
+
+    public Gpio getPinCSS() {
+        return pinCSS;
+    }
+
+    public void setPinCSS(Gpio pinCSS) {
+        this.pinCSS = pinCSS;
+    }
+
+    /***************************************************************
+     *
+     *                           CREATE DEVICE
+     *
+     ***************************************************************/
+
+    private void  init(){
+        initSPI();
+        initGPIO();
+    }
+
+    private void initSPI(){
+        PeripheralManager manager = PeripheralManager.getInstance();
         try {
-            name.setValue(value);
+            spiDevice = manager.openSpiDevice("SPI0.1");
+            Log.d(TAG,"Name: " + spiDevice.getName());
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private int digitalRead(Gpio name){
-        int state = 0;
+    private void initGPIO(){
+        PeripheralManager manager = PeripheralManager.getInstance();
         try {
-            if (name.getValue()) state = 1;
-            else state = 0;
+            pinReset = manager.openGpio(GPIO_RESET);
+            pinD0 = manager.openGpio(GPIO_DIO0);
+            pinCSS = manager.openGpio(GPIO_CSS);
+            Log.d(TAG,"Name: " + pinReset.getName());
+            Log.d(TAG,"Name: " + pinD0.getName());
+            Log.d(TAG,"Name: " + pinCSS.getName());
+
+            pinReset.setDirection(Gpio.DIRECTION_OUT_INITIALLY_HIGH);
+            pinD0.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+            pinCSS.setDirection(Gpio.DIRECTION_OUT_INITIALLY_HIGH);
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return state;
     }
 
-    PeripheralManager manager = PeripheralManager.getInstance();
-    private void regPin(String SPI_CS_PIN, String SPI_MISO_PIN, String SPI_MOSI_PIN, String SPI_SCK_PIN, String ANT_EN_PIN, String RESET_PIN, String DIO0_PIN){
-        try {
-            m_SPI_CS_PIN = manager.openGpio(SPI_CS_PIN);
-            m_SPI_MISO_PIN = manager.openGpio(SPI_MISO_PIN);
-            m_SPI_MOSI_PIN = manager.openGpio(SPI_MOSI_PIN);
-            m_SPI_SCK_PIN = manager.openGpio(SPI_SCK_PIN);
-            m_ANT_EN_PIN = manager.openGpio(ANT_EN_PIN);
-            m_RESET_PIN = manager.openGpio(RESET_PIN);
-            m_DIO0_PIN = manager.openGpio(DIO0_PIN);
-            Log.d(TAG,"Name: " + m_SPI_CS_PIN.getName() + " "
-                                    + m_SPI_MISO_PIN.getName() + " "
-                                    + m_SPI_MOSI_PIN.getName() + " "
-                                    + m_SPI_SCK_PIN.getName() + " "
-                                    + m_ANT_EN_PIN.getName() + " "
-                                    + m_RESET_PIN.getName() + " "
-                                    + m_DIO0_PIN.getName());
-        } catch (IOException e) {
-            Log.e(TAG,"Cannot open the GPIO",e);
+    /***************************************************************
+     *
+     *                          CLOSE DEVICE
+     *
+     ***************************************************************/
+    private void close(){
+        closeGPIO();
+        closeSPI();
+    }
+
+    private void closeGPIO(){
+        if (pinReset != null) {
+            try {
+                pinReset.close();
+                pinReset = null;
+            } catch (IOException e) {
+                Log.w(TAG, "Unable to close GPIO", e);
+            }
+        }
+
+        if (pinD0 != null) {
+            try {
+                pinD0.close();
+                pinD0 = null;
+            } catch (IOException e) {
+                Log.w(TAG, "Unable to close GPIO", e);
+            }
+        }
+
+        if (pinCSS != null) {
+            try {
+                pinCSS.close();
+                pinCSS = null;
+            } catch (IOException e) {
+                Log.w(TAG, "Unable to close GPIO", e);
+            }
         }
     }
 
-    private void delay(int milliseconds){       //**CHECK AGAIN!!!**
+    private void closeSPI(){
+        if (spiDevice != null) {
+            try {
+                spiDevice.close();
+                spiDevice = null;
+            } catch (IOException e) {
+                Log.w(TAG, "Unable to close SPI device", e);
+            }
+        }
+    }
+
+    /***************************************************************
+     *
+     *                          START + CONFIG
+     *
+     ***************************************************************/
+
+    private int start(long frequency) throws IOException {
+
+        init();
+
+        // perform reset
+        digitalWrite(pinReset, LOW);
+        delay(10);
+        digitalWrite(pinReset, HIGH);
+        delay(10);
+
+
+        // start SPI
+        //_spi->begin();
+        configSPIDevice(spiDevice);
+
+        // check version
+        /*byte version = readRegister(REG_VERSION);
+        if (version != 0x12) {
+            return 0;
+        }*/
+
+        // put in sleep mode
+        sleep();
+
+        // set frequency
+        setFrequency(frequency);
+
+        // set base addresses
+        writeRegister(REG_FIFO_TX_BASE_ADDR, (byte) 0);
+        writeRegister(REG_FIFO_RX_BASE_ADDR, (byte) 0);
+
+        // set LNA boost
+        writeRegister(REG_LNA, (byte) (readRegister(REG_LNA) | 0x03));
+
+        // set auto AGC
+        writeRegister(REG_MODEM_CONFIG_3, (byte) 0x04);
+
+        // set output power to 17 dBm
+        setTxPower(17, PA_OUTPUT_PA_BOOST_PIN);
+
+        // put in standby mode
+        idle();
+
+        delay(1000);
+
+        return 1;
+    }
+
+    private void configSPIDevice(SpiDevice device) throws IOException {
+        device.setMode(SpiDevice.MODE1);
+        device.setFrequency(32000000); // 32MHz
+        device.setBitJustification(SpiDevice.BIT_JUSTIFICATION_MSB_FIRST);
+        device.setBitsPerWord(8);
+        Log.d(TAG,"SPI OK now ....");
+    }
+
+    /***************************************************************
+     *
+     *                  BASIC FUNCTION LIKE ARDUINO
+     *
+     ***************************************************************/
+
+    private void digitalWrite(Gpio gpio, boolean value){
         try {
-            Thread.sleep(milliseconds);
+            gpio.setValue(value);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    private void delay(long micro){
+        try {
+            Thread.sleep(micro);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
 
-    private void pinMode(Gpio m_SPI_CS_PIN, Gpio m_SPI_MOSI_PIN, Gpio m_SPI_MISO_PIN, Gpio m_SPI_SCK_PIN, Gpio m_ANT_EN_PIN, Gpio m_RESET_PIN, Gpio m_DIO0_PIN){
+    /***************************************************************
+     *
+     *               FUNCTION PROCESS REGISTER OF LORA
+     *
+     ***************************************************************/
+
+    private void writeRegister(byte address, byte value) {
+        singleTransfer((byte) (address | 0x80), value);
+    }
+
+    private byte readRegister(byte address) {
+        return singleTransfer((byte) (address & 0x7f), (byte) 0x00);
+    }
+
+    private byte singleTransfer(byte address, byte value) {
+        byte[] respone = new byte[2];
+        byte[] data = new byte[2];
+        data[0] = address;
+        data[1] = value;
         try {
-            //Output Pin
-            m_SPI_CS_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
-            m_SPI_MOSI_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
-            m_SPI_SCK_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
-            m_ANT_EN_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
-            m_RESET_PIN.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+            pinCSS.setValue(false);
+            spiDevice.transfer(data,respone,data.length);
+            pinCSS.setValue(true);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return respone[1];
+    }
 
-            //Input Pin
-            m_SPI_MISO_PIN.setDirection(Gpio.DIRECTION_IN);
-            m_DIO0_PIN.setDirection(Gpio.DIRECTION_IN);
+    private void setFrequency(long frequency) {
+        long frf = (frequency << 19) / 32000000;
 
-            m_SPI_MISO_PIN.setActiveType(Gpio.ACTIVE_LOW);
-            m_DIO0_PIN.setActiveType(Gpio.ACTIVE_LOW);
+        writeRegister(REG_FRF_MSB, (byte) (frf >> 16));
+        writeRegister(REG_FRF_MID, (byte) (frf >> 8));
+        writeRegister(REG_FRF_LSB, (byte) (frf >> 0));
+    }
 
-            m_SPI_MISO_PIN.setEdgeTriggerType(Gpio.EDGE_FALLING);
-            m_DIO0_PIN.setEdgeTriggerType(Gpio.EDGE_FALLING);
+    private void idle(){
+        writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_STDBY));
+    }
+
+    private void sleep(){
+        writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_SLEEP));
+    }
+
+    private void setOCP(byte mA)
+    {
+        byte ocpTrim = 27;
+        if (mA <= 120) {
+            ocpTrim = (byte) ((mA - 45) / 5);
+        } else if (mA <=240) {
+            ocpTrim = (byte) ((mA + 30) / 10);
+        }
+        writeRegister(REG_OCP, (byte) (0x20 | (0x1F & ocpTrim)));
+    }
+    /***************************************************************
+     *
+     *                  PUBLIC FUNCTION FOR USER
+     *
+     ***************************************************************/
+    public void begin(){
+        try {
+            start(434000000);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
-    /**********************************************************
-     **Name:     SPICmd8bit
-     **Function: SPI Write one byte
-     **Input:    WrPara
-     **Output:   none
-     **note:     use for burst mode
-     **********************************************************/
-    private void SPICmd8bit(byte WrPara)
-    {
-        byte bitcnt;
-        for(bitcnt=8; bitcnt!=0; bitcnt--)
-        {
-            digitalWrite(m_SPI_SCK_PIN,LOW);
-            if((byte)(WrPara&0x80) == 1)
-                digitalWrite(m_SPI_MOSI_PIN,HIGH);
-            else
-                digitalWrite(m_SPI_MOSI_PIN,LOW);
-            digitalWrite(m_SPI_SCK_PIN,HIGH);
-            WrPara <<= 1;
-        }
-        digitalWrite(m_SPI_SCK_PIN,LOW);
+
+    public void end(){
+        close();
     }
 
-    /**********************************************************
-     **Name:     SPIRead8bit
-     **Function: SPI Read one byte
-     **Input:    None
-     **Output:   result byte
-     **Note:     use for burst mode
-     **********************************************************/
-    private byte SPIRead8bit()
+    public void printRegisters()
     {
-        byte RdPara = 0;
-        byte bitcnt;
-        digitalWrite(m_SPI_CS_PIN,LOW);
-        digitalWrite(m_SPI_MOSI_PIN,HIGH);                                                 //Read one byte data from FIFO, MOSI hold to High
-        for(bitcnt=8; bitcnt!=0; bitcnt--)
-        {
-            digitalWrite(m_SPI_SCK_PIN,LOW);
-            RdPara <<= 1;
-            digitalWrite(m_SPI_SCK_PIN,HIGH);
-            if(digitalRead(m_SPI_MISO_PIN) == 1)
-               RdPara |= 0x01;
-            else
-               RdPara |= 0x00;
-        }
-        digitalWrite(m_SPI_SCK_PIN,LOW);
-        return (RdPara);
-    }
-
-    /**********************************************************
-     **Name:     SPIRead
-     **Function: SPI Read CMD
-     **Input:    adr -> address for read
-     **Output:   None
-     **********************************************************/
-    private byte SPIRead(byte adr)
-    {
-        byte tmp;
-        digitalWrite(m_SPI_SCK_PIN,LOW);
-        digitalWrite(m_SPI_CS_PIN,LOW);
-        SPICmd8bit((byte) (adr&0x7f));                                         //Send address first
-        tmp = SPIRead8bit();
-        digitalWrite(m_SPI_SCK_PIN,LOW);
-        digitalWrite(m_SPI_CS_PIN,HIGH);
-        return tmp;
-    }
-
-    /**********************************************************
-     **Name:     SPIWrite
-     **Function: SPI Write CMD
-     **Input:     byte address &  byte data
-     **Output:   None
-     **********************************************************/
-    private void SPIWrite( byte adr,  byte WrPara)
-    {
-        digitalWrite(m_SPI_SCK_PIN,LOW);
-        digitalWrite(m_SPI_CS_PIN,LOW);
-        SPICmd8bit((byte) (adr|(byte)0x80));
-        SPICmd8bit(WrPara);
-        digitalWrite(m_SPI_SCK_PIN,LOW);
-        digitalWrite(m_SPI_CS_PIN,HIGH);
-    }
-    /**********************************************************
-     **Name:     SPIBurstRead
-     **Function: SPI burst read mode
-     **Input:    adr-----address for read
-     **          ptr-----data buffer point for read
-     **          length--how many bytes for read
-     **Output:   None
-     **********************************************************/
-    private void SPIBurstRead( byte adr, byte[] ptr,  byte length)
-    {
-        byte i;
-        if(length<=1)                                            //length must more than one
-            return;
-        else
-        {
-            digitalWrite(m_SPI_SCK_PIN,LOW);
-            digitalWrite(m_SPI_CS_PIN,LOW);
-            SPICmd8bit(adr);
-            for(i=0;i<length;i++)
-                ptr[i] = SPIRead8bit();
-            digitalWrite(m_SPI_SCK_PIN,LOW);
-            digitalWrite(m_SPI_CS_PIN,HIGH);
+        for (int i = 0; i < 128; i++) {
+            Log.d(TAG,"0x"+ Integer.toHexString(i) +": 0x" + Integer.toHexString(readRegister((byte) i)& 0x000000FF));
         }
     }
 
-    /**********************************************************
-     **Name:     SPIBurstWrite
-     **Function: SPI burst write mode
-     **Input:    adr-----address for write
-     **          ptr-----data buffer point for write
-     **          length--how many bytes for write
-     **Output:   none
-     **********************************************************/
-    private void SPIBurstWrite( byte adr,  byte[] ptr,  byte length)
-    {
-         byte i;
-        if(length<=1)                                            //length must more than one
-            return;
-        else
-        {
-            digitalWrite(m_SPI_SCK_PIN,LOW);
-            digitalWrite(m_SPI_CS_PIN,LOW);
-            SPICmd8bit((byte) (adr|0x80));
-            for(i=0;i<length;i++)
-                SPICmd8bit(ptr[i]);
-            digitalWrite(m_SPI_SCK_PIN,LOW);
-            digitalWrite(m_SPI_CS_PIN,HIGH);
-        }
-    }
-
-    //===========================
-    public void Initial(String SPI_CS_PIN, String SPI_MISO_PIN, String SPI_MOSI_PIN, String SPI_SCK_PIN, String ANT_EN_PIN, String RESET_PIN, String DIO0_PIN)
-    //===========================
-    {
-        regPin(SPI_CS_PIN, SPI_MISO_PIN, SPI_MOSI_PIN, SPI_SCK_PIN, ANT_EN_PIN, RESET_PIN, DIO0_PIN);
-        /*regPin(m_SPI_CS_PIN,SPI_CS_PIN);
-        regPin(m_SPI_MISO_PIN,SPI_MISO_PIN);
-        regPin(m_SPI_MOSI_PIN,SPI_MOSI_PIN);
-        regPin(m_SPI_SCK_PIN,SPI_SCK_PIN);
-        regPin(m_ANT_EN_PIN,ANT_EN_PIN);
-        regPin(m_RESET_PIN,RESET_PIN);
-        regPin(m_DIO0_PIN,DIO0_PIN);*/
-        // initialize the pins
-        pinMode(m_SPI_CS_PIN, m_SPI_MOSI_PIN, m_SPI_MISO_PIN, m_SPI_SCK_PIN, m_ANT_EN_PIN, m_RESET_PIN, m_DIO0_PIN);
-        /*pinMode(m_SPI_CS_PIN, OUTPUT);
-        pinMode(m_SPI_MOSI_PIN, OUTPUT);
-        pinMode(m_SPI_MISO_PIN, INPUT);
-        pinMode(m_SPI_SCK_PIN, OUTPUT);
-        pinMode(m_ANT_EN_PIN, OUTPUT);
-        pinMode(m_RESET_PIN, OUTPUT);
-        pinMode(m_DIO0_PIN, INPUT);*/
-        digitalWrite(m_DIO0_PIN, LOW);
-        digitalWrite(m_RESET_PIN,LOW);
-        delay(100);
-        digitalWrite(m_RESET_PIN,HIGH);
-        delay(100);
-        //Serial.println("Setting Low Frequency LoRa Mode");
-        SPIWrite(REG_OPMODE,(byte) 0x08);                    //Sleep//Low Frequency Mode
-        delay(100);
-        SPIWrite(REG_OPMODE,(byte) 0X88);                    //Set LoRa mode
-        SPIWrite(REG_FREQ23_16,Freq433Table[0]);      //Set FR Frequency 433MHz
-        SPIWrite(REG_FREQ15_8,Freq433Table[1]);
-        SPIWrite(REG_FREQ7_0,Freq433Table[2]);
-        SPIWrite(REG_PA_CONFIG,(byte) 0xF0);                 //PA low, 11dbm
-        SPIWrite(REG_PA_RAMP,(byte) 0x09);                   //40uS
-        SPIWrite(REG_OCP,(byte) 0x2B);                       //Over current protection, 100mA
-        SPIWrite(REG_LNA,(byte) 0x20);                       //
-        SPIWrite(REG_MODEM_CONFIG1, (byte) ((sx1278LoRaBwTable[BandWidth_Sel]<<4) + (CR<<1) + 0x00));   //
-        SPIWrite(REG_MODEM_CONFIG2, (byte) ((sx1278SpreadFactorTable[Lora_Rate_Sel]<<4)+0x07));     //2048
-        SPIWrite(REG_RX_TIME_OUT,(byte) 0xFF);
-        SPIWrite(REG_PREAMBLE_LENGTH_H,(byte) 00);           //Preamble length 12
-        SPIWrite(REG_PREAMBLE_LENGTH_L,(byte) 12);
-        SPIWrite(REG_OPMODE,(byte) 0X09);                    //Standby
-    }
-    //===========================
-    public void InitialSend(byte TX_Length)
-    //===========================
-    {
-         byte addr=0;
-        m_TXLength  = TX_Length;
-        //Serial.print("Send: ");
-        //Serial.println(buffer);
-        digitalWrite(m_ANT_EN_PIN,HIGH);
-        SPIWrite(REG_OPMODE,LORA_STANDBY);
-        SPIWrite(REG_DIO_MAPPING_1,(byte) 0x41); 			 // Change the DIO0_PIN mapping to 01 so we can listen for TxDone on the interrupt
-        SPIWrite(REG_DIO_MAPPING_2,(byte) 0x00);				 //DIO5=00 (ModeReady), DIO4=01(pllLock)
-        SPIWrite(REG_PAYLOAD_LENGTH,m_TXLength);	 //TXData length
-        SPIWrite(REG_LR_PADAC,(byte) 0X87);				     //Tx for 20dBm 0x87
-        SPIWrite(REG_HOP_PERIOD,(byte) 0X00);			     //Disabled
-        SPIWrite(REG_IRQ_FLAGS,(byte) 0xFF);				     //Clear Irq
-        SPIWrite(REG_IRQ_FLAGS_MASK,(byte) 0xF7);	     //Open TxDone interrupt
-        addr=SPIRead(REG_FIFO_TX_BASE_ADDR);
-        SPIWrite(REG_FIFO_ADDR_PTR,addr);
-        while(m_TXLength!=SPIRead(REG_PAYLOAD_LENGTH))
-        {
-        }
-    }
-    //===========================
-    public void Send( byte[] buffer)
-    //===========================
-    {
-         byte i;
-        buffer[m_TXLength-1]=0;
-        for(i=0;i<(m_TXLength-2);i++)
-        {
-            buffer[m_TXLength-1]^=buffer[i];
-        }
-        SPIBurstWrite((byte) 0,buffer,m_TXLength);
-        SPIWrite(REG_OPMODE,LORA_TX);
-        while(digitalRead(m_DIO0_PIN) == 0)			// once TxDone has flipped, everything has been sent
-        {
-            delay(100);
-        }
-        SPIRead(REG_IRQ_FLAGS);
-        SPIWrite(REG_IRQ_FLAGS, (byte) 0xff); 		// clear the flags 0x08 is the TxDone flag
-        SPIWrite(REG_OPMODE,LORA_STANDBY);
-        digitalWrite(m_ANT_EN_PIN,LOW);
-    }
-
-    //===========================
-    public void InitialReceive(byte RX_Length)
-    //===========================
-    {
-         byte addr;
-        //Serial.println("====Initial Receive====");
-        m_RXLength  = RX_Length;
-        digitalWrite(m_ANT_EN_PIN,LOW);
-        SPIWrite(REG_LR_PADAC,(byte) 0X84);                    //Tx for 20dBm 0x84
-        SPIWrite(REG_HOP_PERIOD,(byte) 0xFF);                 	//RegHopPeriod NO FHSS
-        SPIWrite(REG_DIO_MAPPING_1,(byte) 0x01);            		//DIO0=00, DIO1=00, DIO2=00, DIO3=01 Valid header
-        SPIWrite(REG_IRQ_FLAGS_MASK,(byte) 0x3F);             	//Open RxDone interrupt & Timeout
-        SPIWrite(REG_IRQ_FLAGS,(byte) 0xFF);
-        SPIWrite(REG_PAYLOAD_LENGTH,m_RXLength);    	 //RegPayloadLength  30byte(this register must difine when the data long of one byte in SF is 6)
-        addr = SPIRead(REG_FIFO_RX_BASE_ADDR);         	//Read RxBaseAddr
-        SPIWrite(REG_FIFO_ADDR_PTR,addr);             	//RxBaseAddr -> FiFoAddrPtr��
-        SPIWrite(REG_OPMODE,(byte) 0x8d);                    	//Continuous Rx Mode//Low Frequency Mode
-        while((SPIRead(REG_MODEM_STAT)&0x04)!=0x04)
-        {
-        }
-    }
-    //===========================
-    private byte Receive( long Duration)
-    //===========================
-    {
-        byte i,j=0,addr,packet_size;
-        long timer,m_Duration;
-        m_Duration  = Duration;
-        //Serial.print("Waiting");
-        for(timer=0;timer<m_Duration;timer++)
-        {
-            if(digitalRead(m_DIO0_PIN)==0)
-            {
-                delay(1);
-                //Serial.print(".");
+    public void setTxPower(int level, int outputPin) {
+        if (PA_OUTPUT_RFO_PIN == outputPin) {
+            // RFO
+            if (level < 0) {
+                level = 0;
+            } else if (level > 14) {
+                level = 14;
             }
-            else
-            {
-                //Serial.println(" ");
-                //Serial.print("Received data = ");
-                for(i=0;i<m_RXLength;i++)
-                {m_RXData[i] = 0x00;}
-                addr = SPIRead(REG_FIFO_RX_CURRENT_ADDR);     //last packet addr
-                SPIWrite(REG_FIFO_ADDR_PTR,addr);           //RxBaseAddr -> FiFoAddrPtr
-                packet_size = SPIRead(REG_RX_NB_BYTES);     //Number for received bytes
-                SPIBurstRead((byte) 0x00, m_RXData, packet_size);
-                SPIWrite(REG_IRQ_FLAGS,(byte) 0xFF);
-                j=0;
-                for(i=0;i<m_RXLength;i++)
-                {
-                    j^=m_RXData[i];
-                    //Serial.print(RXData[i],HEX);
-                    //Serial.print(" ");
+
+            writeRegister(REG_PA_CONFIG, (byte) (0x70 | level));
+        } else {
+            // PA BOOST
+            if (level > 17) {
+                if (level > 20) {
+                    level = 20;
                 }
-            }
-        }
-        if(timer==m_Duration)
-        {
-            //Serial.print("Time out");
-            //Serial.println(" ");
-            return 0;
-        }
-        if(j!=0)
-        {
-            //Serial.print("CheckSum Error");
-            //Serial.println(" ");
-            return 0;
-        }
-    //Serial.println(" ");
-        return 1;
-    }
 
-    //===========================
-    public void DebugLoRa()
-    //===========================
-    {
-        byte i,j;
-        for(i=0;i<20;i++)
-        {
-            j=SPIRead(i);
-            Log.d(TAG,Integer.toString(j) + " ");
+                // subtract 3 from level, so 18 - 20 maps to 15 - 17
+                level -= 3;
+
+                // High Power +20 dBm Operation (Semtech SX1276/77/78/79 5.4.3.)
+                writeRegister(REG_PA_DAC, (byte) 0x87);
+                setOCP((byte) 140);
+            } else {
+                if (level < 2) {
+                    level = 2;
+                }
+                //Default value PA_HF/LF or +17dBm
+                writeRegister(REG_PA_DAC, (byte) 0x84);
+                setOCP((byte) 100);
+            }
+
+            writeRegister(REG_PA_CONFIG, (byte) (PA_BOOST | (level - 2)));
         }
-        for(i=21;i<40;i++)
-        {
-            j=SPIRead(i);
-            Log.d(TAG,Integer.toString(j) + " ");
-        }
-        Log.d(TAG,"Set LoRa Mode has done");
     }
 }
