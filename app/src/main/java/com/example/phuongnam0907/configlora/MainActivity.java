@@ -1,6 +1,7 @@
 package com.example.phuongnam0907.configlora;
 
 import android.app.Activity;
+import android.app.TaskStackBuilder;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -41,6 +42,7 @@ public class MainActivity extends Activity {
     private Gpio pinD0;     //BCM4  - pin 7
     private Gpio pinCSS;    //BCM25 - pin 22
 
+    int counter = 0;
     private int _ss;
     private int _reset;
     private int _dio0;
@@ -50,7 +52,7 @@ public class MainActivity extends Activity {
     private int _packetIndex;
     private int _implicitHeaderMode;
 
-
+    Timer newLoop;
 
     public static final byte REG_FIFO                   = (byte) 0x00;
     public static final byte REG_OP_MODE                = (byte) 0x01;
@@ -133,6 +135,7 @@ public class MainActivity extends Activity {
             start();
             delay(1000);
             printRegisters();
+            loop();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -181,6 +184,25 @@ public class MainActivity extends Activity {
 
     }
 
+    public void loop(){
+        newLoop = new Timer();
+        TimerTask timerTask = new TimerTask() {
+            @Override
+            public void run() {
+                MainActivity.this.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d(TAG, "Start loop!!!");
+                        //LoRaReceive();
+                        counter++;
+                        LoRaSender("phuongnam0907@gmail.com/?value:= " + counter);
+                    }
+                });
+            }
+        };
+        newLoop.schedule(timerTask,1000,3000);
+    }
+
     private void configSPIDevice(SpiDevice device) throws IOException {
         device.setMode(SpiDevice.MODE1);
         device.setFrequency(32000000); // 32MHz
@@ -188,16 +210,26 @@ public class MainActivity extends Activity {
         device.setBitsPerWord(8);
         Log.d(TAG,"SPI OK now ....");
     }
+
+    public void LoRaSender(String string){
+        beginPacket(0);
+        write(string.getBytes());
+        endPacket(false);
+        delay(5000);
+    }
+
     public void LoRaReceive(){
         int packetSize = parsePacket(0);
+        Log.d(TAG,"receive package");
         if (packetSize > 0) {
             String dataTemp = "";
             // received a packet
             dataTemp += "Received packet '";
-
+            Log.d(TAG,dataTemp);
             // read packet
             while (available() > 0) {
                 dataTemp += (char)read();
+                Log.d(TAG,dataTemp);
             }
 
             // print RSSI of packet
