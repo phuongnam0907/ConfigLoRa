@@ -126,13 +126,16 @@ public class MainActivity extends Activity {
             Log.d(TAG,"Name: " + pinCSS.getName());
 
             pinReset.setDirection(Gpio.DIRECTION_OUT_INITIALLY_HIGH);
-            pinD0.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
+            pinD0.setDirection(Gpio.DIRECTION_IN);
+            pinD0.setActiveType(Gpio.ACTIVE_HIGH);
+            pinD0.setEdgeTriggerType(Gpio.EDGE_RISING);
             pinCSS.setDirection(Gpio.DIRECTION_OUT_INITIALLY_HIGH);
 
             mDevice = manager.openSpiDevice("SPI0.1");
             Log.d(TAG,"Name: " + mDevice.getName());
 
             start();
+            writeRegister(REG_OP_MODE,MODE_RX_SINGLE);
             delay(1000);
             printRegisters();
             loop();
@@ -194,13 +197,17 @@ public class MainActivity extends Activity {
                     public void run() {
                         Log.d(TAG, "Start loop!!!");
                         //LoRaReceive();
-                        counter++;
-                        LoRaSender("phuongnam0907@gmail.com/?value:= " + counter);
+                        //counter++;
+                        //LoRaSender("phuongnam0907@gmail.com/?value:= " + counter);
+                        int size = parsePacket(0);
+                        String s = new String(String.valueOf((char)readRegister(REG_FIFO)));
+                        Log.d("FIFO: ", s + " IRQ: 0x"+ Integer.toHexString(readRegister(REG_IRQ_FLAGS)) + " size: " + Integer.toString(readRegister(REG_RX_NB_BYTES)) + " payload: " + Integer.toString(readRegister(REG_PAYLOAD_LENGTH)));
+                        writeRegister(REG_FIFO,(byte)0);
                     }
                 });
             }
         };
-        newLoop.schedule(timerTask,1000,3000);
+        newLoop.schedule(timerTask,1000,500);
     }
 
     private void configSPIDevice(SpiDevice device) throws IOException {
@@ -285,13 +292,14 @@ public class MainActivity extends Activity {
         writeRegister(REG_MODEM_CONFIG_3, (byte) 0x04);
 
         // set output power to 17 dBm
-        setTxPower(17, PA_OUTPUT_PA_BOOST_PIN);
+        setTxPower(13, PA_OUTPUT_PA_BOOST_PIN);
 
         // put in standby mode
         idle();
 
         return 1;
     }
+
 
     public void digitalWrite(Gpio gpio, boolean value){
         try {
@@ -485,7 +493,7 @@ public class MainActivity extends Activity {
       // clear IRQ's
       writeRegister(REG_IRQ_FLAGS, (byte) irqFlags);
 
-      if (((irqFlags & IRQ_RX_DONE_MASK) & (irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK)) == 0) {
+      if (((irqFlags & IRQ_RX_DONE_MASK) & (irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK)) == 0x00) {
         // received a packet
         _packetIndex = 0;
 
@@ -501,7 +509,7 @@ public class MainActivity extends Activity {
 
         // put in standby mode
         idle();
-      } else if (readRegister(REG_OP_MODE) != (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE)) {
+      } else if ((byte) readRegister(REG_OP_MODE) == (byte) (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE)) {
         // not currently in RX mode
 
         // reset FIFO address
@@ -511,7 +519,10 @@ public class MainActivity extends Activity {
         writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE));
       }
 
+        writeRegister(REG_OP_MODE,MODE_RX_SINGLE);
+
       return packetLength;
+
     }
 
     public int packetRssi()
@@ -805,6 +816,38 @@ public class MainActivity extends Activity {
      *                         ????????????
      *
      ***************************************************************/
+/*
+    void LoRaClass::onReceive(void(*callback)(int))
+    {
+        _onReceive = callback;
+
+        if (callback) {
+            pinMode(_dio0, INPUT);
+
+            writeRegister(REG_DIO_MAPPING_1, 0x00);
+    #ifdef SPI_HAS_NOTUSINGINTERRUPT
+            SPI.usingInterrupt(digitalPinToInterrupt(_dio0));
+    #endif
+            attachInterrupt(digitalPinToInterrupt(_dio0), LoRaClass::onDio0Rise, RISING);
+        } else {
+            detachInterrupt(digitalPinToInterrupt(_dio0));
+    #ifdef SPI_HAS_NOTUSINGINTERRUPT
+            SPI.notUsingInterrupt(digitalPinToInterrupt(_dio0));
+        }
+    }
+
+    public void receive(int size)
+    {
+        if (size > 0) {
+            implicitHeaderMode();
+
+            writeRegister(REG_PAYLOAD_LENGTH, (byte) (size & 0xff));
+        } else {
+            explicitHeaderMode();
+        }
+
+        writeRegister(REG_OP_MODE, (byte)(MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS));
+    }
 
     /*
     #ifndef ARDUINO_SAMD_MKRWAN1300
