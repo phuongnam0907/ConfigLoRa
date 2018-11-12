@@ -46,7 +46,6 @@ public class MainActivity extends Activity {
     private int _ss;
     private int _reset;
     private int _dio0;
-//    private int[] _onReceive = new int[];
 
     private long _frequency;
     private int _packetIndex;
@@ -134,10 +133,8 @@ public class MainActivity extends Activity {
             mDevice = manager.openSpiDevice("SPI0.1");
             Log.d(TAG,"Name: " + mDevice.getName());
 
-            start();
-            writeRegister(REG_OP_MODE,MODE_RX_SINGLE);
-            delay(1000);
-            printRegisters();
+            //Start LoRa
+            setup();
             loop();
 
         } catch (IOException e) {
@@ -187,6 +184,30 @@ public class MainActivity extends Activity {
 
     }
 
+    /***************************************************************
+     *
+     *                      VOID SETUP - START LORA
+     *
+     ***************************************************************/
+
+    public void setup(){
+        try {
+            int status = begin(434000000);
+            delay(1000);
+            if (status == 0) Log.d("LoRa","Init Failed!");
+            else Log.d("LoRa","Init Succeed!!! Starting LoRa......");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        //printRegisters();
+    }
+
+    /***************************************************************
+     *
+     *                       VOID LOOP
+     *
+     ***************************************************************/
+
     public void loop(){
         newLoop = new Timer();
         TimerTask timerTask = new TimerTask() {
@@ -195,20 +216,27 @@ public class MainActivity extends Activity {
                 MainActivity.this.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Log.d(TAG, "Start loop!!!");
-                        //LoRaReceive();
-                        //counter++;
-                        //LoRaSender("phuongnam0907@gmail.com/?value:= " + counter);
-                        int size = parsePacket(0);
-                        String s = new String(String.valueOf((char)readRegister(REG_FIFO)));
-                        Log.d("FIFO: ", s + " IRQ: 0x"+ Integer.toHexString(readRegister(REG_IRQ_FLAGS)) + " size: " + Integer.toString(readRegister(REG_RX_NB_BYTES)) + " payload: " + Integer.toString(readRegister(REG_PAYLOAD_LENGTH)));
-                        writeRegister(REG_FIFO,(byte)0);
+//                        Log.d(TAG, "Start loop!!!");
+                        LoRaReceive();
+//                        counter++;
+//                        LoRaSender("phuongnam0907@gmail.com/?value:= " + counter);
+//                        int size = parsePacket(0);
+//                        String s = new String(String.valueOf((char)readRegister(REG_FIFO)));
+//                        Log.d("FIFO: ", s + " IRQ: 0x"+ Integer.toHexString(readRegister(REG_IRQ_FLAGS)) + " size: " + Integer.toString(readRegister(REG_RX_NB_BYTES)) + " payload: " + Integer.toString(readRegister(REG_PAYLOAD_LENGTH)));
+//                        writeRegister(REG_FIFO,(byte)0);
+//                        Log.d("Init: ",Integer.toHexString(readRegister(REG_VERSION)));
                     }
                 });
             }
         };
         newLoop.schedule(timerTask,1000,500);
     }
+
+    /***************************************************************
+     *
+     *                      CONFIG SPI COMMUNICATE
+     *
+     ***************************************************************/
 
     private void configSPIDevice(SpiDevice device) throws IOException {
         device.setMode(SpiDevice.MODE1);
@@ -217,6 +245,12 @@ public class MainActivity extends Activity {
         device.setBitsPerWord(8);
         Log.d(TAG,"SPI OK now ....");
     }
+
+    /***************************************************************
+     *
+     *                        SUB-FUNCTION CODE
+     *
+     ***************************************************************/
 
     public void LoRaSender(String string){
         beginPacket(0);
@@ -227,16 +261,13 @@ public class MainActivity extends Activity {
 
     public void LoRaReceive(){
         int packetSize = parsePacket(0);
-        Log.d(TAG,"receive package");
         if (packetSize > 0) {
             String dataTemp = "";
             // received a packet
             dataTemp += "Received packet '";
-            Log.d(TAG,dataTemp);
             // read packet
             while (available() > 0) {
                 dataTemp += (char)read();
-                Log.d(TAG,dataTemp);
             }
 
             // print RSSI of packet
@@ -246,7 +277,13 @@ public class MainActivity extends Activity {
         }
     }
 
-    public int start() throws IOException {
+    /***************************************************************
+     *
+     *                           LIBRARY CODE
+     *
+     ***************************************************************/
+
+    public int begin(long frequency) throws IOException {
 
         // perform reset
         digitalWrite(pinReset, LOW);
@@ -256,14 +293,13 @@ public class MainActivity extends Activity {
 
 
         // start SPI
-        //_spi->begin();
         configSPIDevice(mDevice);
 
         // check version
-        /*byte version = readRegister(REG_VERSION);
+        byte version = readRegister(REG_VERSION);
         if (version != 0x12) {
             return 0;
-        }*/
+        }
 
         // put in sleep mode
         sleep();
@@ -300,6 +336,9 @@ public class MainActivity extends Activity {
         return 1;
     }
 
+    public void end(){
+        onDestroy();
+    }
 
     public void digitalWrite(Gpio gpio, boolean value){
         try {
@@ -479,6 +518,7 @@ public class MainActivity extends Activity {
 
     public int parsePacket(int size)
     {
+      writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE));
       int packetLength = 0;
       int irqFlags = readRegister(REG_IRQ_FLAGS);
 
@@ -493,7 +533,7 @@ public class MainActivity extends Activity {
       // clear IRQ's
       writeRegister(REG_IRQ_FLAGS, (byte) irqFlags);
 
-      if (((irqFlags & IRQ_RX_DONE_MASK) & (irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK)) == 0x00) {
+      if (((irqFlags & IRQ_RX_DONE_MASK) != 0x00) && ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0x00)) {
         // received a packet
         _packetIndex = 0;
 
@@ -518,8 +558,6 @@ public class MainActivity extends Activity {
         // put in single RX mode
         writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE));
       }
-
-        writeRegister(REG_OP_MODE,MODE_RX_SINGLE);
 
       return packetLength;
 
@@ -645,17 +683,10 @@ public class MainActivity extends Activity {
 
             // set FIFO address to current RX address
             writeRegister(REG_FIFO_ADDR_PTR, readRegister(REG_FIFO_RX_CURRENT_ADDR));
-/*
-            if (_onReceive == null) {
-                _onReceive(packetLength);
-            }
-*/
+
             // reset FIFO address
             writeRegister(REG_FIFO_ADDR_PTR, (byte) 0);
         }
-    }
-
-    private void _onReceive(int packetLength) {
     }
 
 
@@ -811,96 +842,4 @@ public class MainActivity extends Activity {
         handleDio0Rise();
     }
 
-    /***************************************************************
-     *
-     *                         ????????????
-     *
-     ***************************************************************/
-/*
-    void LoRaClass::onReceive(void(*callback)(int))
-    {
-        _onReceive = callback;
-
-        if (callback) {
-            pinMode(_dio0, INPUT);
-
-            writeRegister(REG_DIO_MAPPING_1, 0x00);
-    #ifdef SPI_HAS_NOTUSINGINTERRUPT
-            SPI.usingInterrupt(digitalPinToInterrupt(_dio0));
-    #endif
-            attachInterrupt(digitalPinToInterrupt(_dio0), LoRaClass::onDio0Rise, RISING);
-        } else {
-            detachInterrupt(digitalPinToInterrupt(_dio0));
-    #ifdef SPI_HAS_NOTUSINGINTERRUPT
-            SPI.notUsingInterrupt(digitalPinToInterrupt(_dio0));
-        }
-    }
-
-    public void receive(int size)
-    {
-        if (size > 0) {
-            implicitHeaderMode();
-
-            writeRegister(REG_PAYLOAD_LENGTH, (byte) (size & 0xff));
-        } else {
-            explicitHeaderMode();
-        }
-
-        writeRegister(REG_OP_MODE, (byte)(MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS));
-    }
-
-    /*
-    #ifndef ARDUINO_SAMD_MKRWAN1300
-    void LoRaClass::onReceive(void(*callback)(int))
-    {
-        _onReceive = callback;
-
-        if (callback) {
-            pinMode(_dio0, INPUT);
-
-            writeRegister(REG_DIO_MAPPING_1, 0x00);
-    #ifdef SPI_HAS_NOTUSINGINTERRUPT
-                SPI.usingInterrupt(digitalPinToInterrupt(_dio0));
-    #endif
-                attachInterrupt(digitalPinToInterrupt(_dio0), LoRaClass::onDio0Rise, RISING);
-            } else {
-                detachInterrupt(digitalPinToInterrupt(_dio0));
-    #ifdef SPI_HAS_NOTUSINGINTERRUPT
-                SPI.notUsingInterrupt(digitalPinToInterrupt(_dio0));
-    #endif
-            }
-        }
-
-        void LoRaClass::receive(int size)
-        {
-            if (size > 0) {
-                implicitHeaderMode();
-
-                writeRegister(REG_PAYLOAD_LENGTH, size & 0xff);
-            } else {
-                explicitHeaderMode();
-            }
-
-            writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS);
-        }
-    #endif
-
-    void LoRaClass::setPins(int ss, int reset, int dio0)
-    {
-        _ss = ss;
-        _reset = reset;
-        _dio0 = dio0;
-    }
-
-    void LoRaClass::setSPI(SPIClass& spi)
-    {
-        _spi = &spi;
-    }
-
-    void LoRaClass::setSPIFrequency(uint32_t frequency)
-    {
-        _spiSettings = SPISettings(frequency, MSBFIRST, SPI_MODE0);
-    }
-
-    */
 }
