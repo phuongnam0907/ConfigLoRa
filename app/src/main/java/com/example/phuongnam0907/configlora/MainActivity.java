@@ -10,6 +10,7 @@ import com.google.android.things.pio.PeripheralManager;
 import com.google.android.things.pio.SpiDevice;
 
 import java.io.IOException;
+import java.util.Calendar;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -842,4 +843,54 @@ public class MainActivity extends Activity {
         handleDio0Rise();
     }
 
+    /***************************************************************
+     *
+     *                    RH Generic Driver Library
+     *
+     ***************************************************************/
+
+    public boolean isAvailable()
+    {
+        if(isTransmitting() == true) return false;
+        else return true;
+    }
+
+    public void waitAvailable()
+    {
+        while (!isAvailable()) yield();
+    }
+
+    public boolean waitAvailableTimeout(int timeout)
+    {
+        Calendar rightNow = Calendar.getInstance();
+        long starttime = rightNow.getTimeInMillis();
+        while ((rightNow.getTimeInMillis() - starttime) < timeout){
+            if (isAvailable())
+            {
+                return true;
+            }
+            yield();
+        }
+        return false;
+    }
+
+    public boolean waitPacketSent(int timeout)
+    {
+        if (timeout < 0) timeout = 0;
+        if (timeout == 0) {
+            while ((readRegister(REG_OP_MODE) & MODE_TX) == MODE_TX) yield();
+            return true;
+        } else {
+            Calendar rightNow = Calendar.getInstance();
+            long starttime = rightNow.getTimeInMillis();
+            while ((rightNow.getTimeInMillis() - starttime) < timeout){
+                if ((readRegister(REG_OP_MODE) & MODE_TX) != MODE_TX)
+                {
+                    return true;
+                }
+                yield();
+            }
+            return false;
+        }
+    }
 }
