@@ -221,6 +221,7 @@ public class MainActivity extends Activity {
                         LoRaReceive();
 //                        counter++;
 //                        LoRaSender("phuongnam0907@gmail.com/?value:= " + counter);
+//                        LoRaSender("!!!@@@DMhihi123456");
 //                        int size = parsePacket(0);
 //                        String s = new String(String.valueOf((char)readRegister(REG_FIFO)));
 //                        Log.d("FIFO: ", s + " IRQ: 0x"+ Integer.toHexString(readRegister(REG_IRQ_FLAGS)) + " size: " + Integer.toString(readRegister(REG_RX_NB_BYTES)) + " payload: " + Integer.toString(readRegister(REG_PAYLOAD_LENGTH)));
@@ -255,9 +256,18 @@ public class MainActivity extends Activity {
 
     public void LoRaSender(String string){
         beginPacket(0);
+        byte[] start = new byte[4];
+        start[0] = (byte) 0xFF;
+        start[1] = (byte) 0xFF;
+        start[2] = (byte) 0x0;
+        start[3] = (byte) 0x0;
+        write(start);
         write(string.getBytes());
+        byte[] end = new byte[1];
+        end[0] = (byte) 0x0;
+        write(end);
         endPacket(false);
-        delay(5000);
+        delay(100);
     }
 
     public void LoRaReceive(){
@@ -267,14 +277,21 @@ public class MainActivity extends Activity {
             // received a packet
             dataTemp += "Received packet '";
             // read packet
+            String temp = "";
             while (available() > 0) {
-                dataTemp += (char)read();
+                //dataTemp += (char)read();
+                temp += (char)read();
+                //Log.d(TAG,Integer.toHexString(read()));
             }
-
+            temp = temp.substring(4,temp.length()-1);
             // print RSSI of packet
+            Log.d(TAG, "New string: " + temp);
             dataTemp += "' with RSSI " + packetRssi();
-
-            Log.d(TAG,dataTemp);
+            if (temp.equals("Hello World!")) {
+                Log.d(TAG,"Result true");
+                LoRaSender("Xin chao cai dmmm 111100032@#!#34231413421");
+            }
+            //Log.d(TAG,dataTemp);
         }
     }
 
