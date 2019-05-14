@@ -9,8 +9,15 @@ import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManager;
 import com.google.android.things.pio.SpiDevice;
 
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.Timestamp;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -36,6 +43,23 @@ import static java.lang.Thread.yield;
  * @see <a href="https://github.com/androidthings/contrib-drivers#readme">https://github.com/androidthings/contrib-drivers#readme</a>
  */
 public class MainActivity extends Activity {
+    /// cac ham trong arduino
+    public int state = 1;
+    public long starttime = System.currentTimeMillis();
+    public String[][] idnodecon = new String[100][4];
+    public String id = "102";
+    public int idgateway = 1;
+    public int bac = 1;
+    public int idnode = 1;
+    public int sonodecon = 1;
+    public int demketnoimuc2 = 0;
+    public int demnhandulieu = 0;
+    ///
+
+    private String header_1 ="[{\"Gateway\":\""+ id +"\",\"Node\":\"";
+    private String result = header_1;
+    Timer updateTimer;
+    Timestamp timestamp;
 
     private SpiDevice mDevice;
     private static final String TAG = MainActivity.class.getSimpleName();
@@ -54,58 +78,58 @@ public class MainActivity extends Activity {
 
     Timer newLoop;
 
-    public static final byte REG_FIFO                   = (byte) 0x00;
-    public static final byte REG_OP_MODE                = (byte) 0x01;
-    public static final byte REG_FRF_MSB                = (byte) 0x06;
-    public static final byte REG_FRF_MID                = (byte) 0x07;
-    public static final byte REG_FRF_LSB                = (byte) 0x08;
-    public static final byte REG_PA_CONFIG              = (byte) 0x09;
-    public static final byte REG_OCP                    = (byte) 0x0b;
-    public static final byte REG_LNA                    = (byte) 0x0c;
-    public static final byte REG_FIFO_ADDR_PTR          = (byte) 0x0d;
-    public static final byte REG_FIFO_TX_BASE_ADDR      = (byte) 0x0e;
-    public static final byte REG_FIFO_RX_BASE_ADDR      = (byte) 0x0f;
-    public static final byte REG_FIFO_RX_CURRENT_ADDR   = (byte) 0x10;
-    public static final byte REG_IRQ_FLAGS              = (byte) 0x12;
-    public static final byte REG_RX_NB_BYTES            = (byte) 0x13;
-    public static final byte REG_PKT_SNR_VALUE          = (byte) 0x19;
-    public static final byte REG_PKT_RSSI_VALUE         = (byte) 0x1a;
-    public static final byte REG_MODEM_CONFIG_1         = (byte) 0x1d;
-    public static final byte REG_MODEM_CONFIG_2         = (byte) 0x1e;
-    public static final byte REG_PREAMBLE_MSB           = (byte) 0x20;
-    public static final byte REG_PREAMBLE_LSB           = (byte) 0x21;
-    public static final byte REG_PAYLOAD_LENGTH         = (byte) 0x22;
-    public static final byte REG_MODEM_CONFIG_3         = (byte) 0x26;
-    public static final byte REG_FREQ_ERROR_MSB         = (byte) 0x28;
-    public static final byte REG_FREQ_ERROR_MID         = (byte) 0x29;
-    public static final byte REG_FREQ_ERROR_LSB         = (byte) 0x2a;
-    public static final byte REG_RSSI_WIDEBAND          = (byte) 0x2c;
-    public static final byte REG_DETECTION_OPTIMIZE     = (byte) 0x31;
-    public static final byte REG_INVERTIQ               = (byte) 0x33;
-    public static final byte REG_DETECTION_THRESHOLD    = (byte) 0x37;
-    public static final byte REG_SYNC_WORD              = (byte) 0x39;
-    public static final byte REG_INVERTIQ2              = (byte) 0x3b;
-    public static final byte REG_DIO_MAPPING_1          = (byte) 0x40;
-    public static final byte REG_VERSION                = (byte) 0x42;
-    public static final byte REG_PA_DAC                 = (byte) 0x4d;
+    public static final byte REG_FIFO = (byte) 0x00;
+    public static final byte REG_OP_MODE = (byte) 0x01;
+    public static final byte REG_FRF_MSB = (byte) 0x06;
+    public static final byte REG_FRF_MID = (byte) 0x07;
+    public static final byte REG_FRF_LSB = (byte) 0x08;
+    public static final byte REG_PA_CONFIG = (byte) 0x09;
+    public static final byte REG_OCP = (byte) 0x0b;
+    public static final byte REG_LNA = (byte) 0x0c;
+    public static final byte REG_FIFO_ADDR_PTR = (byte) 0x0d;
+    public static final byte REG_FIFO_TX_BASE_ADDR = (byte) 0x0e;
+    public static final byte REG_FIFO_RX_BASE_ADDR = (byte) 0x0f;
+    public static final byte REG_FIFO_RX_CURRENT_ADDR = (byte) 0x10;
+    public static final byte REG_IRQ_FLAGS = (byte) 0x12;
+    public static final byte REG_RX_NB_BYTES = (byte) 0x13;
+    public static final byte REG_PKT_SNR_VALUE = (byte) 0x19;
+    public static final byte REG_PKT_RSSI_VALUE = (byte) 0x1a;
+    public static final byte REG_MODEM_CONFIG_1 = (byte) 0x1d;
+    public static final byte REG_MODEM_CONFIG_2 = (byte) 0x1e;
+    public static final byte REG_PREAMBLE_MSB = (byte) 0x20;
+    public static final byte REG_PREAMBLE_LSB = (byte) 0x21;
+    public static final byte REG_PAYLOAD_LENGTH = (byte) 0x22;
+    public static final byte REG_MODEM_CONFIG_3 = (byte) 0x26;
+    public static final byte REG_FREQ_ERROR_MSB = (byte) 0x28;
+    public static final byte REG_FREQ_ERROR_MID = (byte) 0x29;
+    public static final byte REG_FREQ_ERROR_LSB = (byte) 0x2a;
+    public static final byte REG_RSSI_WIDEBAND = (byte) 0x2c;
+    public static final byte REG_DETECTION_OPTIMIZE = (byte) 0x31;
+    public static final byte REG_INVERTIQ = (byte) 0x33;
+    public static final byte REG_DETECTION_THRESHOLD = (byte) 0x37;
+    public static final byte REG_SYNC_WORD = (byte) 0x39;
+    public static final byte REG_INVERTIQ2 = (byte) 0x3b;
+    public static final byte REG_DIO_MAPPING_1 = (byte) 0x40;
+    public static final byte REG_VERSION = (byte) 0x42;
+    public static final byte REG_PA_DAC = (byte) 0x4d;
 
-    public static final byte MODE_LONG_RANGE_MODE       = (byte) 0x80;
-    public static final byte MODE_SLEEP                 = (byte) 0x00;
-    public static final byte MODE_STDBY                 = (byte) 0x01;
-    public static final byte MODE_TX                    = (byte) 0x03;
-    public static final byte MODE_RX_CONTINUOUS         = (byte) 0x05;
-    public static final byte MODE_RX_SINGLE             = (byte) 0x06;
-    public static final byte PA_BOOST                   = (byte) 0x80;
+    public static final byte MODE_LONG_RANGE_MODE = (byte) 0x80;
+    public static final byte MODE_SLEEP = (byte) 0x00;
+    public static final byte MODE_STDBY = (byte) 0x01;
+    public static final byte MODE_TX = (byte) 0x03;
+    public static final byte MODE_RX_CONTINUOUS = (byte) 0x05;
+    public static final byte MODE_RX_SINGLE = (byte) 0x06;
+    public static final byte PA_BOOST = (byte) 0x80;
 
     // IRQ masks
-    public static final byte IRQ_TX_DONE_MASK           = (byte) 0x08;
+    public static final byte IRQ_TX_DONE_MASK = (byte) 0x08;
     public static final byte IRQ_PAYLOAD_CRC_ERROR_MASK = (byte) 0x20;
-    public static final byte IRQ_RX_DONE_MASK           = (byte) 0x40;
+    public static final byte IRQ_RX_DONE_MASK = (byte) 0x40;
 
-    public static final int MAX_PKT_LENGTH              = 255;
+    public static final int MAX_PKT_LENGTH = 255;
 
-    public static final int PA_OUTPUT_RFO_PIN          = 0;
-    public static final int PA_OUTPUT_PA_BOOST_PIN     = 1;
+    public static final int PA_OUTPUT_RFO_PIN = 0;
+    public static final int PA_OUTPUT_PA_BOOST_PIN = 1;
 
     private static final boolean LOW = false;
     private static final boolean HIGH = true;
@@ -116,14 +140,14 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         PeripheralManager manager = PeripheralManager.getInstance();
-        Log.d(TAG,"List of Devices support SPI : "+ manager.getSpiBusList());
+        Log.d(TAG, "List of Devices support SPI : " + manager.getSpiBusList());
         try {
             pinReset = manager.openGpio("BCM17");
             pinD0 = manager.openGpio("BCM4");
             pinCSS = manager.openGpio("BCM25");
-            Log.d(TAG,"Name: " + pinReset.getName());
-            Log.d(TAG,"Name: " + pinD0.getName());
-            Log.d(TAG,"Name: " + pinCSS.getName());
+            Log.d(TAG, "Name: " + pinReset.getName());
+            Log.d(TAG, "Name: " + pinD0.getName());
+            Log.d(TAG, "Name: " + pinCSS.getName());
 
             pinReset.setDirection(Gpio.DIRECTION_OUT_INITIALLY_HIGH);
             pinD0.setDirection(Gpio.DIRECTION_IN);
@@ -132,7 +156,7 @@ public class MainActivity extends Activity {
             pinCSS.setDirection(Gpio.DIRECTION_OUT_INITIALLY_HIGH);
 
             mDevice = manager.openSpiDevice("SPI0.1");
-            Log.d(TAG,"Name: " + mDevice.getName());
+            Log.d(TAG, "Name: " + mDevice.getName());
 
             //Start LoRa
             setup();
@@ -191,16 +215,21 @@ public class MainActivity extends Activity {
      *
      ***************************************************************/
 
-    public void setup(){
+    public void setup() {
         try {
             int status = begin(434000000);
             delay(1000);
-            if (status == 0) Log.d("LoRa","Init Failed!");
-            else Log.d("LoRa","Init Succeed!!! Starting LoRa......");
+            if (status == 0) Log.d("LoRa", "Init Failed!");
+            else Log.d("LoRa", "Init Succeed!!! Starting LoRa......");
         } catch (IOException e) {
             e.printStackTrace();
         }
         //printRegisters();
+        for (int i = 0; i <= 99; i++) {
+            for (int j = 0; j <= 3; j++) {
+                idnodecon[i][j] = "0";
+            }
+        }
     }
 
     /***************************************************************
@@ -209,7 +238,7 @@ public class MainActivity extends Activity {
      *
      ***************************************************************/
 
-    public void loop(){
+    public void loop() {
         newLoop = new Timer();
         TimerTask timerTask = new TimerTask() {
             @Override
@@ -217,8 +246,20 @@ public class MainActivity extends Activity {
                 MainActivity.this.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
+                        if (state == 1) {
+                            if (System.currentTimeMillis() - starttime < 30000) {
+                                ketnoimuc1();
+                            } else if (System.currentTimeMillis() - starttime < 60000) {
+                                ketnoimuc2();
+                            } else {
+                                state = 2;
+                            }
+                        } else if (state == 2) {
+
+                            nhandulieu();
+                        }
 //                        Log.d(TAG, "Start loop!!!");
-                        LoRaReceive();
+//                        LoRaReceive();
 //                        counter++;
 //                        LoRaSender("phuongnam0907@gmail.com/?value:= " + counter);
 //                        LoRaSender("!!!@@@DMhihi123456");
@@ -231,7 +272,140 @@ public class MainActivity extends Activity {
                 });
             }
         };
-        newLoop.schedule(timerTask,1000,500);
+        newLoop.schedule(timerTask, 1000, 500);
+    }
+
+    /***************************************************************
+     *
+     *                     cac ham trong arduino
+     *
+     ***************************************************************/
+    public void ketnoimuc1() {
+        LoRaReceiveKetnoimuc1();
+    }
+
+    public void ketnoimuc2() {
+        Log.d(TAG, "chuyen sang ket noi muc 2");
+        long timeketnoimuc2 = 35000;
+        if (System.currentTimeMillis() - timeketnoimuc2 > 10000 && demketnoimuc2 <= 2) {
+            String dataketnoimuc2 = "kt2";
+            dataketnoimuc2 = dataketnoimuc2.concat(id);
+            LoRaSender(dataketnoimuc2);
+            demketnoimuc2 = demketnoimuc2 + 1;
+        }
+        LoRaReceiveKetnoimuc2();
+
+    }
+
+    public void nhandulieu() {
+        Log.d(TAG, "chuyen sang nhan du lieu");
+        if (demnhandulieu == 0) {
+            String datanhandulieu = "kg0";
+            datanhandulieu = datanhandulieu.concat(id);
+            LoRaSender(datanhandulieu);
+            demnhandulieu = demnhandulieu + 1;
+        }
+
+        LoRaReceiveNhandulieu();
+    }
+
+    public void kn0(String idnodegui, String datakt) {
+        String IDgateway = String.valueOf(idgateway);
+        /////
+        String Bac = String.valueOf(bac);
+        ////
+        String IDnode = String.valueOf(idnode);
+        ////
+        String Sonodecon = String.valueOf(sonodecon);
+        ////
+        String data1 = "";
+        data1 = data1.concat(datakt + id + idnodegui + IDgateway + Bac + IDnode + Sonodecon);
+        LoRaSender(data1);
+    }
+
+    public void tc0(String temp) {
+        for (int i = 0; i <= 99; i++) {
+            if (idnodecon[i][0] == "0") {
+                idnodecon[i][0] = "1";
+                idnodecon[i][1] = temp.substring(6, 9);
+                Log.i(TAG, "luu dia chi node con");
+                sonodecon = sonodecon + 1;
+                i = 101;
+            }
+        }
+    }
+
+    public void kg1(String temp) {
+        for (int i = 0; i <= 99; i++) {
+            if (idnodecon[i][0] == "1" && idnodecon[i][1].equals(temp.substring(6, 9))) {
+                Log.i("du lieu nhan duoc tu node con", temp);
+                result = result.concat(temp.substring(6,9));// id node
+                result+="\",\"phValue\":0,\"tempValue\":";
+                result =  result.concat(temp.substring(12,14)); //nhiet do
+                //int nhietdo = Integer.parseInt(temp.substring(12, 13));
+                //     Log.d(TAG, "nheit do nhan duoc: " + Integer.parseInt(String.valueOf(temp.charAt(12))));
+
+                /// day nhiet do o day
+                result+= ",\"liqValue\":0,\"doValue\":0,\"tdsValue\":0,\"orpValue\":0";
+                i = 101;
+            }
+        }
+        String data = "dn1";
+        data = data.concat(id + temp.substring(3, 6));
+        LoRaSender(data);
+        updateData();
+    }
+
+    private void updateData(){
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try{
+                    Date date = new Date();
+                    //result = result.substring(0,result.length()-1);
+                    result += ",\"time\":" + date.getTime()/1000 + "}]";
+
+                    URL url = new URL("http://172.20.10.3/rpi3/backend/post.php");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json;charset=UTF-8");
+                    conn.setRequestProperty("Accept","application/json");
+                    conn.setDoOutput(true);
+                    conn.setDoInput(true);
+                    conn.connect();
+
+                    DataOutputStream os = new DataOutputStream(conn.getOutputStream());
+
+                    os.writeBytes(result.toString());
+                    Log.d("json: ", result);
+                    os.flush();
+                    os.close();
+
+//                    BufferedReader in=new BufferedReader(new InputStreamReader(conn.getInputStream()));
+//                    StringBuffer sb = new StringBuffer("");
+//                    String line="";
+//
+//                    while((line = in.readLine()) != null) {
+//
+//                        sb.append(line);
+//                        break;
+//                    }
+//
+//                    in.close();
+//                    Log.d("phuongnam0907 response",sb.toString());
+
+                    conn.disconnect();
+
+                    result = "";
+                    result = header_1;
+
+                }catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
+        thread.start();
     }
 
     /***************************************************************
@@ -245,7 +419,7 @@ public class MainActivity extends Activity {
         device.setFrequency(32000000); // 32MHz
         device.setBitJustification(SpiDevice.BIT_JUSTIFICATION_MSB_FIRST);
         device.setBitsPerWord(8);
-        Log.d(TAG,"SPI OK now ....");
+        Log.d(TAG, "SPI OK now ....");
     }
 
     /***************************************************************
@@ -254,7 +428,7 @@ public class MainActivity extends Activity {
      *
      ***************************************************************/
 
-    public void LoRaSender(String string){
+    public void LoRaSender(String string) {
         beginPacket(0);
         byte[] start = new byte[4];
         start[0] = (byte) 0xFF;
@@ -267,10 +441,9 @@ public class MainActivity extends Activity {
         end[0] = (byte) 0x0;
         write(end);
         endPacket(false);
-        delay(100);
     }
 
-    public void LoRaReceive(){
+    public void LoRaReceiveKetnoimuc1() {
         int packetSize = parsePacket(0);
         if (packetSize > 0) {
             String dataTemp = "";
@@ -280,16 +453,108 @@ public class MainActivity extends Activity {
             String temp = "";
             while (available() > 0) {
                 //dataTemp += (char)read();
-                temp += (char)read();
+                temp += (char) read();
                 //Log.d(TAG,Integer.toHexString(read()));
             }
-            temp = temp.substring(4,temp.length()-1);
+            temp = temp.substring(4, temp.length() - 1);
             // print RSSI of packet
             Log.d(TAG, "New string: " + temp);
             dataTemp += "' with RSSI " + packetRssi();
-            if (temp.equals("Hello World!")) {
-                Log.d(TAG,"Result true");
-                LoRaSender("Xin chao cai dmmm 111100032@#!#34231413421");
+            Log.d(TAG, "gia tri RSSI" + packetRssi());
+            String data = temp.substring(0, 3);
+            Log.i("gia tri temp 1", data);
+            if (data.equals("kn0") && packetRssi() > -300) {
+                Log.d(TAG, "Node con co the ket noi voi tin hieu muc cao");
+                String datakt1 = "kt1";
+                String idnodegui = temp.substring(3, 6);
+                kn0(idnodegui, datakt1);
+            } else if (data.equals("tc0")) {
+                String dataid = temp.substring(3, 6);
+                if (dataid.equals(id)) {
+                    tc0(temp);
+                }
+            } else if (data.equals("tc1")) {
+                Log.i(TAG, "luu du lieu len server");
+            }
+            //Log.d(TAG,dataTemp);
+        }
+    }
+
+    public void LoRaReceiveKetnoimuc2() {
+        int packetSize = parsePacket(0);
+        if (packetSize > 0) {
+            String dataTemp = "";
+            // received a packet
+            dataTemp += "Received packet '";
+            // read packet
+            String temp = "";
+            while (available() > 0) {
+                //dataTemp += (char)read();
+                temp += (char) read();
+                //Log.d(TAG,Integer.toHexString(read()));
+            }
+            temp = temp.substring(4, temp.length() - 1);
+            // print RSSI of packet
+            Log.d(TAG, "New string: " + temp);
+            dataTemp += "' with RSSI " + packetRssi();
+            Log.d(TAG, "gia tri RSSI" + packetRssi());
+            String data = temp.substring(0, 3);
+            Log.i("gia tri temp 1", data);
+            if (data.equals("kn0") && packetRssi() > -300) {
+                Log.d(TAG, "Node con co the ket noi voi tin hieu muc cao");
+                String datakt2 = "kt2";
+                String idnodegui = temp.substring(3, 6);
+                kn0(idnodegui, datakt2);
+            } else if (data.equals("tc0")) {
+                String dataid = temp.substring(3, 6);
+                if (dataid.equals(id)) {
+                    tc0(temp);
+                }
+            } else if (data.equals("tc1")) {
+                Log.i(TAG, "luu du lieu len server");
+            }
+            //Log.d(TAG,dataTemp);
+        }
+
+    }
+
+    public void LoRaReceiveNhandulieu() {
+        int packetSize = parsePacket(0);
+        if (packetSize > 0) {
+            String dataTemp = "";
+            // received a packet
+            dataTemp += "Received packet '";
+            // read packet
+            String temp = "";
+            while (available() > 0) {
+                //dataTemp += (char)read();
+                temp += (char) read();
+                //Log.d(TAG,Integer.toHexString(read()));
+            }
+            temp = temp.substring(4, temp.length() - 1);
+            // print RSSI of packet
+            Log.d(TAG, "New string: " + temp);
+            dataTemp += "' with RSSI " + packetRssi();
+            Log.d(TAG, "gia tri RSSI" + packetRssi());
+            String data = temp.substring(0, 3);
+            Log.i("gia tri temp 1", data);
+            if (data.equals("kn0") && packetRssi() > -300) {
+                Log.d(TAG, "cho phep node con ket noi");
+                String datakt1 = "kt3";
+                String idnodegui = temp.substring(3, 6);
+                kn0(idnodegui, datakt1);
+            } else if (data.equals("tc0")) {
+                String dataid = temp.substring(3, 6);
+                if (dataid.equals(id)) {
+                    tc0(temp);
+                }
+            } else if (data.equals("tc1")) {
+                Log.i(TAG, "luu du lieu len server");
+            } else if (data.equals("kg1")) {
+                String dataid = temp.substring(3, 6);
+                if (dataid.equals(id)) {
+                    kg1(temp);
+                }
             }
             //Log.d(TAG,dataTemp);
         }
@@ -354,11 +619,11 @@ public class MainActivity extends Activity {
         return 1;
     }
 
-    public void end(){
+    public void end() {
         onDestroy();
     }
 
-    public void digitalWrite(Gpio gpio, boolean value){
+    public void digitalWrite(Gpio gpio, boolean value) {
         try {
             gpio.setValue(value);
         } catch (IOException e) {
@@ -366,13 +631,15 @@ public class MainActivity extends Activity {
         }
 
     }
-    public void delay(long micro){
+
+    public void delay(long micro) {
         try {
             Thread.sleep(micro);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
+
     private void writeRegister(byte address, byte value) {
         singleTransfer((byte) (address | 0x80), value);
     }
@@ -388,7 +655,7 @@ public class MainActivity extends Activity {
         data[1] = value;
         try {
             pinCSS.setValue(false);
-            mDevice.transfer(data,respone,data.length);
+            mDevice.transfer(data, respone, data.length);
             pinCSS.setValue(true);
         } catch (IOException e) {
             e.printStackTrace();
@@ -442,30 +709,28 @@ public class MainActivity extends Activity {
         }
     }
 
-    public void idle(){
+    public void idle() {
         writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_STDBY));
-       // Log.d(TAG,"MODE 0x01: 0x" + Integer.toHexString(readRegister(REG_OP_MODE)));
+        // Log.d(TAG,"MODE 0x01: 0x" + Integer.toHexString(readRegister(REG_OP_MODE)));
     }
 
-    public void sleep(){
+    public void sleep() {
         writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_SLEEP));
         //Log.d(TAG,"MODE 0x01: 0x" + Integer.toHexString(readRegister(REG_OP_MODE)));
     }
 
-    public void printRegisters()
-    {
+    public void printRegisters() {
         for (int i = 0; i < 128; i++) {
-            Log.d(TAG,"0x"+ Integer.toHexString(i) +": 0x" + Integer.toHexString(readRegister((byte) i)& 0x000000FF));
+            Log.d(TAG, "0x" + Integer.toHexString(i) + ": 0x" + Integer.toHexString(readRegister((byte) i) & 0x000000FF));
         }
     }
 
-    public void setOCP(byte mA)
-    {
+    public void setOCP(byte mA) {
         byte ocpTrim = 27;
 
         if (mA <= 120) {
             ocpTrim = (byte) ((mA - 45) / 5);
-        } else if (mA <=240) {
+        } else if (mA <= 240) {
             ocpTrim = (byte) ((mA + 30) / 10);
         }
 
@@ -478,215 +743,200 @@ public class MainActivity extends Activity {
      *
      ***************************************************************/
 
-    public int beginPacket(int implicitHeader)
-    {
-      if (isTransmitting()) {
-        return 0;
-      }
-
-      // put in standby mode
-      idle();
-
-      if (implicitHeader > 0) {
-        implicitHeaderMode();
-      } else {
-        explicitHeaderMode();
-      }
-
-      // reset FIFO address and paload length
-      writeRegister(REG_FIFO_ADDR_PTR, (byte) 0);
-      writeRegister(REG_PAYLOAD_LENGTH, (byte) 0);
-
-      return 1;
-    }
-
-    public int endPacket(boolean async)
-    {
-      // put in TX mode
-      writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_TX));
-
-      if (async) {
-        // grace time is required for the radio
-        delay(150);
-      } else {
-        // wait for TX done
-        while ((readRegister(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK) == 0) {
-          yield();
+    public int beginPacket(int implicitHeader) {
+        if (isTransmitting()) {
+            return 0;
         }
-        // clear IRQ's
-        writeRegister(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK);
-      }
-
-      return 1;
-    }
-
-    private boolean isTransmitting()
-    {
-      if ((readRegister(REG_OP_MODE) & MODE_TX) == MODE_TX) {
-        return true;
-      }
-
-      if ((readRegister(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK) > 0) {
-        // clear IRQ's
-        writeRegister(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK);
-      }
-
-      return false;
-    }
-
-    public int parsePacket(int size)
-    {
-      writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE));
-      int packetLength = 0;
-      int irqFlags = readRegister(REG_IRQ_FLAGS);
-
-      if (size > 0) {
-        implicitHeaderMode();
-
-        writeRegister(REG_PAYLOAD_LENGTH, (byte) (size & 0xff));
-      } else {
-        explicitHeaderMode();
-      }
-
-      // clear IRQ's
-      writeRegister(REG_IRQ_FLAGS, (byte) irqFlags);
-
-      if (((irqFlags & IRQ_RX_DONE_MASK) != 0x00) && ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0x00)) {
-        // received a packet
-        _packetIndex = 0;
-
-        // read packet length
-        if (_implicitHeaderMode > 0) {
-          packetLength = readRegister(REG_PAYLOAD_LENGTH);
-        } else {
-          packetLength = readRegister(REG_RX_NB_BYTES);
-        }
-
-        // set FIFO address to current RX address
-        writeRegister(REG_FIFO_ADDR_PTR, readRegister(REG_FIFO_RX_CURRENT_ADDR));
 
         // put in standby mode
         idle();
-      } else if ((byte) readRegister(REG_OP_MODE) == (byte) (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE)) {
-        // not currently in RX mode
 
-        // reset FIFO address
+        if (implicitHeader > 0) {
+            implicitHeaderMode();
+        } else {
+            explicitHeaderMode();
+        }
+
+        // reset FIFO address and paload length
         writeRegister(REG_FIFO_ADDR_PTR, (byte) 0);
+        writeRegister(REG_PAYLOAD_LENGTH, (byte) 0);
 
-        // put in single RX mode
+        return 1;
+    }
+
+    public int endPacket(boolean async) {
+        // put in TX mode
+        writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_TX));
+
+        if (async) {
+            // grace time is required for the radio
+        } else {
+            // wait for TX done
+            while ((readRegister(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK) == 0) {
+                yield();
+            }
+            // clear IRQ's
+            writeRegister(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK);
+        }
+
+        return 1;
+    }
+
+    private boolean isTransmitting() {
+        if ((readRegister(REG_OP_MODE) & MODE_TX) == MODE_TX) {
+            return true;
+        }
+
+        if ((readRegister(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK) > 0) {
+            // clear IRQ's
+            writeRegister(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK);
+        }
+
+        return false;
+    }
+
+    public int parsePacket(int size) {
         writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE));
-      }
+        int packetLength = 0;
+        int irqFlags = readRegister(REG_IRQ_FLAGS);
 
-      return packetLength;
+        if (size > 0) {
+            implicitHeaderMode();
+
+            writeRegister(REG_PAYLOAD_LENGTH, (byte) (size & 0xff));
+        } else {
+            explicitHeaderMode();
+        }
+
+        // clear IRQ's
+        writeRegister(REG_IRQ_FLAGS, (byte) irqFlags);
+
+        if (((irqFlags & IRQ_RX_DONE_MASK) != 0x00) && ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0x00)) {
+            // received a packet
+            _packetIndex = 0;
+
+            // read packet length
+            if (_implicitHeaderMode > 0) {
+                packetLength = readRegister(REG_PAYLOAD_LENGTH);
+            } else {
+                packetLength = readRegister(REG_RX_NB_BYTES);
+            }
+
+            // set FIFO address to current RX address
+            writeRegister(REG_FIFO_ADDR_PTR, readRegister(REG_FIFO_RX_CURRENT_ADDR));
+
+            // put in standby mode
+            idle();
+        } else if ((byte) readRegister(REG_OP_MODE) == (byte) (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE)) {
+            // not currently in RX mode
+
+            // reset FIFO address
+            writeRegister(REG_FIFO_ADDR_PTR, (byte) 0);
+
+            // put in single RX mode
+            writeRegister(REG_OP_MODE, (byte) (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE));
+        }
+
+        return packetLength;
 
     }
 
-    public int packetRssi()
-    {
-      return (readRegister(REG_PKT_RSSI_VALUE) - (_frequency < 868E6 ? 164 : 157));
+    public int packetRssi() {
+        return (readRegister(REG_PKT_RSSI_VALUE) - (_frequency < 868E6 ? 164 : 157));
     }
 
-    public float packetSnr()
-    {
-      return (float) ((readRegister(REG_PKT_SNR_VALUE)) * 0.25);
+    public float packetSnr() {
+        return (float) ((readRegister(REG_PKT_SNR_VALUE)) * 0.25);
     }
 
-    public long packetFrequencyError()
-    {
-      int freqError = 0;
-      freqError = (int)(readRegister(REG_FREQ_ERROR_MSB) & 0B111);
-      freqError <<= 8L;
-      freqError += (int)(readRegister(REG_FREQ_ERROR_MID));
-      freqError <<= 8L;
-      freqError += (int)(readRegister(REG_FREQ_ERROR_LSB));
+    public long packetFrequencyError() {
+        int freqError = 0;
+        freqError = (int) (readRegister(REG_FREQ_ERROR_MSB) & 0B111);
+        freqError <<= 8L;
+        freqError += (int) (readRegister(REG_FREQ_ERROR_MID));
+        freqError <<= 8L;
+        freqError += (int) (readRegister(REG_FREQ_ERROR_LSB));
 
-      if ((readRegister(REG_FREQ_ERROR_MSB) & 0B1000) != 0B0000) { // Sign bit is on
-         freqError -= 524288; // B1000'0000'0000'0000'0000
-      }
+        if ((readRegister(REG_FREQ_ERROR_MSB) & 0B1000) != 0B0000) { // Sign bit is on
+            freqError -= 524288; // B1000'0000'0000'0000'0000
+        }
 
-      float fXtal = (float) 32E6; // FXOSC: crystal oscillator (XTAL) frequency (2.5. Chip Specification, p. 14)
-      float fError = (((float)(freqError) * (1L << 24)) / fXtal) * (getSignalBandwidth() / 500000.0f); // p. 37
+        float fXtal = (float) 32E6; // FXOSC: crystal oscillator (XTAL) frequency (2.5. Chip Specification, p. 14)
+        float fError = (((float) (freqError) * (1L << 24)) / fXtal) * (getSignalBandwidth() / 500000.0f); // p. 37
 
-      return (long)(fError);
+        return (long) (fError);
     }
 
-    public long write(byte[] bytes)
-    {
-      return write(bytes, bytes.length);
+    public long write(byte[] bytes) {
+        return write(bytes, bytes.length);
     }
 
-    public long write(byte[] buffer, long size)
-    {
-      int currentLength = readRegister(REG_PAYLOAD_LENGTH);
+    public long write(byte[] buffer, long size) {
+        int currentLength = readRegister(REG_PAYLOAD_LENGTH);
 
-      // check size
-      if ((currentLength + size) > MAX_PKT_LENGTH) {
-        size = MAX_PKT_LENGTH - currentLength;
-      }
+        // check size
+        if ((currentLength + size) > MAX_PKT_LENGTH) {
+            size = MAX_PKT_LENGTH - currentLength;
+        }
 
-      // write data
-      for (int i = 0; i < size; i++) {
-        writeRegister(REG_FIFO, buffer[i]);
-      }
+        // write data
+        for (int i = 0; i < size; i++) {
+            writeRegister(REG_FIFO, buffer[i]);
+        }
 
-      // update length
-      writeRegister(REG_PAYLOAD_LENGTH, (byte) (currentLength + size));
+        // update length
+        writeRegister(REG_PAYLOAD_LENGTH, (byte) (currentLength + size));
 
-      return size;
+        return size;
     }
 
-    public int available()
-    {
-      return (readRegister(REG_RX_NB_BYTES) - _packetIndex);
+    public int available() {
+        return (readRegister(REG_RX_NB_BYTES) - _packetIndex);
     }
 
-    public int read()
-    {
-      if (available() <= 0) {
-        return -1;
-      }
+    public int read() {
+        if (available() <= 0) {
+            return -1;
+        }
 
-      _packetIndex++;
+        _packetIndex++;
 
-      return readRegister(REG_FIFO);
+        return readRegister(REG_FIFO);
     }
 
-    public int peek()
-    {
-      if (available() <= 0) {
-        return -1;
-      }
+    public int peek() {
+        if (available() <= 0) {
+            return -1;
+        }
 
-      // store current FIFO address
-      int currentAddress = readRegister(REG_FIFO_ADDR_PTR);
+        // store current FIFO address
+        int currentAddress = readRegister(REG_FIFO_ADDR_PTR);
 
-      // read
-      byte b = readRegister(REG_FIFO);
+        // read
+        byte b = readRegister(REG_FIFO);
 
-      // restore FIFO address
-      writeRegister(REG_FIFO_ADDR_PTR, (byte) currentAddress);
+        // restore FIFO address
+        writeRegister(REG_FIFO_ADDR_PTR, (byte) currentAddress);
 
-      return b;
+        return b;
     }
 
-    public void flush(){}
+    public void flush() {
+    }
 
-    private void explicitHeaderMode()
-    {
+    private void explicitHeaderMode() {
         _implicitHeaderMode = 0;
 
         writeRegister(REG_MODEM_CONFIG_1, (byte) (readRegister(REG_MODEM_CONFIG_1) & 0xfe));
     }
 
-    private void implicitHeaderMode()
-    {
+    private void implicitHeaderMode() {
         _implicitHeaderMode = 1;
 
         writeRegister(REG_MODEM_CONFIG_1, (byte) (readRegister(REG_MODEM_CONFIG_1) | 0x01));
     }
 
-    private void handleDio0Rise()
-    {
+    private void handleDio0Rise() {
         int irqFlags = readRegister(REG_IRQ_FLAGS);
 
         // clear IRQ's
@@ -708,13 +958,11 @@ public class MainActivity extends Activity {
     }
 
 
-    private int getSpreadingFactor()
-    {
+    private int getSpreadingFactor() {
         return readRegister(REG_MODEM_CONFIG_2) >> 4;
     }
 
-    public void setSpreadingFactor(int sf)
-    {
+    public void setSpreadingFactor(int sf) {
         if (sf < 6) {
             sf = 6;
         } else if (sf > 12) {
@@ -733,28 +981,36 @@ public class MainActivity extends Activity {
         setLdoFlag();
     }
 
-    private long getSignalBandwidth()
-    {
+    private long getSignalBandwidth() {
         byte bw = (byte) (readRegister(REG_MODEM_CONFIG_1) >> 4);
 
         switch (bw) {
-            case 0: return 7800;
-            case 1: return 10400;
-            case 2: return 15600;
-            case 3: return 20800;
-            case 4: return 31250;
-            case 5: return 41700;
-            case 6: return 62500;
-            case 7: return 125000;
-            case 8: return 250000;
-            case 9: return 500000;
+            case 0:
+                return 7800;
+            case 1:
+                return 10400;
+            case 2:
+                return 15600;
+            case 3:
+                return 20800;
+            case 4:
+                return 31250;
+            case 5:
+                return 41700;
+            case 6:
+                return 62500;
+            case 7:
+                return 125000;
+            case 8:
+                return 250000;
+            case 9:
+                return 500000;
         }
 
         return -1;
     }
 
-    public void setSignalBandwidth(long sbw)
-    {
+    public void setSignalBandwidth(long sbw) {
         int bw;
 
         if (sbw <= 7800) {
@@ -783,10 +1039,9 @@ public class MainActivity extends Activity {
         setLdoFlag();
     }
 
-    private void setLdoFlag()
-    {
+    private void setLdoFlag() {
         // Section 4.1.1.5
-        long symbolDuration = 1000 / ( getSignalBandwidth() / (1L << getSpreadingFactor()) ) ;
+        long symbolDuration = 1000 / (getSignalBandwidth() / (1L << getSpreadingFactor()));
 
         // Section 4.1.1.6
         boolean ldoOn = symbolDuration > 16;
@@ -796,8 +1051,7 @@ public class MainActivity extends Activity {
         writeRegister(REG_MODEM_CONFIG_3, config3);
     }
 
-    public void setCodingRate4(int denominator)
-    {
+    public void setCodingRate4(int denominator) {
         if (denominator < 5) {
             denominator = 5;
         } else if (denominator > 8) {
@@ -809,24 +1063,20 @@ public class MainActivity extends Activity {
         writeRegister(REG_MODEM_CONFIG_1, (byte) ((readRegister(REG_MODEM_CONFIG_1) & 0xf1) | (cr << 1)));
     }
 
-    public void setPreambleLength(long length)
-    {
+    public void setPreambleLength(long length) {
         writeRegister(REG_PREAMBLE_MSB, (byte) (length >> 8));
         writeRegister(REG_PREAMBLE_LSB, (byte) (length >> 0));
     }
 
-    public void setSyncWord(int sw)
-    {
+    public void setSyncWord(int sw) {
         writeRegister(REG_SYNC_WORD, (byte) sw);
     }
 
-    private void enableCrc()
-    {
+    private void enableCrc() {
         writeRegister(REG_MODEM_CONFIG_2, (byte) (readRegister(REG_MODEM_CONFIG_2) | 0x04));
     }
 
-    private void disableCrc()
-    {
+    private void disableCrc() {
         writeRegister(REG_MODEM_CONFIG_2, (byte) (readRegister(REG_MODEM_CONFIG_2) & 0xfb));
     }
 
@@ -838,25 +1088,21 @@ public class MainActivity extends Activity {
         disableCrc();
     }
 
-    private void enableInvertIQ()
-    {
-        writeRegister(REG_INVERTIQ,  (byte) 0x66);
+    private void enableInvertIQ() {
+        writeRegister(REG_INVERTIQ, (byte) 0x66);
         writeRegister(REG_INVERTIQ2, (byte) 0x19);
     }
 
-    public void disableInvertIQ()
-    {
-        writeRegister(REG_INVERTIQ,  (byte) 0x27);
+    public void disableInvertIQ() {
+        writeRegister(REG_INVERTIQ, (byte) 0x27);
         writeRegister(REG_INVERTIQ2, (byte) 0x1d);
     }
 
-    public byte random()
-    {
+    public byte random() {
         return readRegister(REG_RSSI_WIDEBAND);
     }
 
-    private void onDio0Rise()
-    {
+    private void onDio0Rise() {
         handleDio0Rise();
     }
 
@@ -866,24 +1112,20 @@ public class MainActivity extends Activity {
      *
      ***************************************************************/
 
-    public boolean isAvailable()
-    {
-        if(isTransmitting() == true) return false;
+    public boolean isAvailable() {
+        if (isTransmitting() == true) return false;
         else return true;
     }
 
-    public void waitAvailable()
-    {
+    public void waitAvailable() {
         while (!isAvailable()) yield();
     }
 
-    public boolean waitAvailableTimeout(int timeout)
-    {
+    public boolean waitAvailableTimeout(int timeout) {
         Calendar rightNow = Calendar.getInstance();
         long starttime = rightNow.getTimeInMillis();
-        while ((rightNow.getTimeInMillis() - starttime) < timeout){
-            if (isAvailable())
-            {
+        while ((rightNow.getTimeInMillis() - starttime) < timeout) {
+            if (isAvailable()) {
                 return true;
             }
             yield();
@@ -891,8 +1133,7 @@ public class MainActivity extends Activity {
         return false;
     }
 
-    public boolean waitPacketSent(int timeout)
-    {
+    public boolean waitPacketSent(int timeout) {
         if (timeout < 0) timeout = 0;
         if (timeout == 0) {
             while ((readRegister(REG_OP_MODE) & MODE_TX) == MODE_TX) yield();
@@ -900,9 +1141,8 @@ public class MainActivity extends Activity {
         } else {
             Calendar rightNow = Calendar.getInstance();
             long starttime = rightNow.getTimeInMillis();
-            while ((rightNow.getTimeInMillis() - starttime) < timeout){
-                if ((readRegister(REG_OP_MODE) & MODE_TX) != MODE_TX)
-                {
+            while ((rightNow.getTimeInMillis() - starttime) < timeout) {
+                if ((readRegister(REG_OP_MODE) & MODE_TX) != MODE_TX) {
                     return true;
                 }
                 yield();
