@@ -365,7 +365,7 @@ public class MainActivity extends Activity {
                     //result = result.substring(0,result.length()-1);
                     result += ",\"time\":" + date.getTime()/1000 + "}]";
 
-                    URL url = new URL("http://172.20.10.3/rpi3/backend/post.php");
+                    URL url = new URL("http://192.168.0.150:8080/rpi3/backend/post.php");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
                     conn.setRequestProperty("Content-Type", "application/json;charset=UTF-8");
