@@ -365,7 +365,7 @@ public class MainActivity extends Activity {
                     //result = result.substring(0,result.length()-1);
                     result += ",\"time\":" + date.getTime()/1000 + "}]";
 
-                    URL url = new URL("http://192.168.0.150:8080/rpi3/backend/post.php");
+                    URL url = new URL("http://192.168.97.1/rpi3/backend/post.php");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
                     conn.setRequestProperty("Content-Type", "application/json;charset=UTF-8");
@@ -381,18 +381,18 @@ public class MainActivity extends Activity {
                     os.flush();
                     os.close();
 
-//                    BufferedReader in=new BufferedReader(new InputStreamReader(conn.getInputStream()));
-//                    StringBuffer sb = new StringBuffer("");
-//                    String line="";
-//
-//                    while((line = in.readLine()) != null) {
-//
-//                        sb.append(line);
-//                        break;
-//                    }
-//
-//                    in.close();
-//                    Log.d("phuongnam0907 response",sb.toString());
+                    BufferedReader in=new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuffer sb = new StringBuffer("");
+                    String line="";
+
+                    while((line = in.readLine()) != null) {
+
+                        sb.append(line);
+                        break;
+                    }
+
+                    in.close();
+                    //Log.d("phuongnam0907 response",sb.toString());
 
                     conn.disconnect();
 
