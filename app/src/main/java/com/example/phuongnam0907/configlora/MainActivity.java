@@ -2,8 +2,21 @@ package com.example.phuongnam0907.configlora;
 
 import android.app.Activity;
 import android.app.TaskStackBuilder;
+import android.content.Context;
+import android.graphics.drawable.AnimationDrawable;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.support.constraint.ConstraintLayout;
+import android.text.format.Formatter;
 import android.util.Log;
+import android.view.View;
+import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManager;
@@ -16,8 +29,11 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.Timestamp;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -43,6 +59,9 @@ import static java.lang.Thread.yield;
  * @see <a href="https://github.com/androidthings/contrib-drivers#readme">https://github.com/androidthings/contrib-drivers#readme</a>
  */
 public class MainActivity extends Activity {
+    // Layout Design
+    TextView ipg, wifig, idg, clkg, vlg;
+    ImageButton btn;
     /// cac ham trong arduino
     public int state = 1;
     public long starttime = System.currentTimeMillis();
@@ -55,7 +74,7 @@ public class MainActivity extends Activity {
     public int demketnoimuc2 = 0;
     public int demnhandulieu = 0;
     ///
-
+    //private String address = "http://192.168.97.1/rpi3/backend/";
     private String header_1 ="[{\"Gateway\":\""+ id +"\",\"Node\":\"";
     private String result = header_1;
     Timer updateTimer;
@@ -139,6 +158,60 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        getActionBar().hide();
+
+        TextView wifig = findViewById(R.id.wifi);
+        TextView ipg = findViewById(R.id.ip);
+        TextView idg = findViewById(R.id.id);
+        final TextView vlg = findViewById(R.id.value);
+        final TextView clkg = findViewById(R.id.clock);
+
+        //String date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
+
+        final Handler someHandler = new Handler(getMainLooper());
+        someHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                clkg.setText(new SimpleDateFormat("MMM dd - HH:mm:ss").format(Calendar.getInstance().getTime()));
+                vlg.setText(new SimpleDateFormat("ss").format(Calendar.getInstance().getTime()) + "\u00B0C");
+                someHandler.postDelayed(this, 1000);
+            }
+        }, 10);
+
+        WifiManager wifiMgr = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        WifiInfo wifiInfo = wifiMgr.getConnectionInfo();
+        int ip = wifiInfo.getIpAddress();
+        String ipAddress = Formatter.formatIpAddress(ip);
+
+        idg.setText("ID: " +id);
+        wifig.setText(wifiInfo.getSSID().substring(1,wifiInfo.getSSID().length()-1));
+        ipg.setText(ipAddress);
+        //clkg.setText(date);
+        //SET VALUE SENSOR
+//        final Handler handler = new Handler(getMainLooper());
+//        handler.postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                vlg.setText((CharSequence) Calendar.getInstance().getTime());
+//                //someHandler.postDelayed(this, 1000);
+//            }
+//        }, 1000);
+
+        ImageButton btn = findViewById(R.id.info);
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Toast.makeText(getApplicationContext(), "Gateway LoRa - Base Station\n              Version: 0.1\nLuan Van Tot Nghiep 2019", Toast.LENGTH_LONG).show();
+            }
+        });
+
+        LinearLayout linearLayout = findViewById(R.id.layout);
+        AnimationDrawable animationDrawable = (AnimationDrawable) linearLayout.getBackground();
+        animationDrawable.setEnterFadeDuration(2000);
+        animationDrawable.setExitFadeDuration(4000);
+        animationDrawable.start();
+
         PeripheralManager manager = PeripheralManager.getInstance();
         Log.d(TAG, "List of Devices support SPI : " + manager.getSpiBusList());
         try {
@@ -258,16 +331,6 @@ public class MainActivity extends Activity {
 
                             nhandulieu();
                         }
-//                        Log.d(TAG, "Start loop!!!");
-//                        LoRaReceive();
-//                        counter++;
-//                        LoRaSender("phuongnam0907@gmail.com/?value:= " + counter);
-//                        LoRaSender("!!!@@@DMhihi123456");
-//                        int size = parsePacket(0);
-//                        String s = new String(String.valueOf((char)readRegister(REG_FIFO)));
-//                        Log.d("FIFO: ", s + " IRQ: 0x"+ Integer.toHexString(readRegister(REG_IRQ_FLAGS)) + " size: " + Integer.toString(readRegister(REG_RX_NB_BYTES)) + " payload: " + Integer.toString(readRegister(REG_PAYLOAD_LENGTH)));
-//                        writeRegister(REG_FIFO,(byte)0);
-//                        Log.d("Init: ",Integer.toHexString(readRegister(REG_VERSION)));
                     }
                 });
             }
@@ -281,6 +344,7 @@ public class MainActivity extends Activity {
      *
      ***************************************************************/
     public void ketnoimuc1() {
+        //create gw
         LoRaReceiveKetnoimuc1();
     }
 
@@ -298,14 +362,23 @@ public class MainActivity extends Activity {
     }
 
     public void nhandulieu() {
-        Log.d(TAG, "chuyen sang nhan du lieu");
+
         if (demnhandulieu == 0) {
+            Log.d(TAG, "chuyen sang nhan du lieu");
             String datanhandulieu = "kg0";
             datanhandulieu = datanhandulieu.concat(id);
             LoRaSender(datanhandulieu);
             demnhandulieu = demnhandulieu + 1;
         }
 
+        long millis = System.currentTimeMillis();
+        int seconds = (int) (millis / 1000);
+        if (seconds % 600 == 0) {
+            Log.d(TAG,"thuc hien ngu");
+            String datangu = "ngu";
+            datangu=datangu.concat(id);
+            LoRaSender(datangu);
+        }
         LoRaReceiveNhandulieu();
     }
 
@@ -333,6 +406,7 @@ public class MainActivity extends Activity {
                 i = 101;
             }
         }
+        addnewnode(temp.substring(6,9), temp.substring(3,6));
     }
 
     public void kg1(String temp) {
@@ -342,8 +416,6 @@ public class MainActivity extends Activity {
                 result = result.concat(temp.substring(6,9));// id node
                 result+="\",\"phValue\":0,\"tempValue\":";
                 result =  result.concat(temp.substring(12,14)); //nhiet do
-                //int nhietdo = Integer.parseInt(temp.substring(12, 13));
-                //     Log.d(TAG, "nheit do nhan duoc: " + Integer.parseInt(String.valueOf(temp.charAt(12))));
 
                 /// day nhiet do o day
                 result+= ",\"liqValue\":0,\"doValue\":0,\"tdsValue\":0,\"orpValue\":0";
@@ -351,7 +423,7 @@ public class MainActivity extends Activity {
             }
         }
         String data = "dn1";
-        data = data.concat(id + temp.substring(3, 6));
+        data = data.concat(id + temp.substring(6, 9));
         LoRaSender(data);
         updateData();
     }
@@ -372,7 +444,7 @@ public class MainActivity extends Activity {
                     conn.setRequestProperty("Accept","application/json");
                     conn.setDoOutput(true);
                     conn.setDoInput(true);
-                    conn.connect();
+                    //conn.connect();
 
                     DataOutputStream os = new DataOutputStream(conn.getOutputStream());
 
@@ -407,6 +479,46 @@ public class MainActivity extends Activity {
 
         thread.start();
     }
+    private void addnewnode(final String con, final String cha){
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String linkadd = "http://192.168.97.1/rpi3/backend/node.php?method=addnew&gateway=" + id + "&id=" + con +"&dad=" + cha;
+                String linkdel = "http://192.168.97.1/rpi3/backend/node.php?method=delete&gateway=" + id + "&id=" + con;
+                sendRequest(linkdel);
+                sendRequest(linkadd);
+            }
+        });
+
+        thread.start();
+    }
+    private void sendRequest (String request){
+        try {
+            URL url = new URL(request);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setDoOutput(true);
+            conn.setInstanceFollowRedirects(false);
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Content-Type", "text/plain");
+            conn.setRequestProperty("charset", "utf-8");
+            //conn.connect();
+            BufferedReader in=new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            StringBuffer sb = new StringBuffer("");
+            String line="";
+
+            while((line = in.readLine()) != null) {
+
+                sb.append(line);
+                break;
+            }
+//            Log.d("Res", line);
+            in.close();
+            conn.disconnect();
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
 
     /***************************************************************
      *
@@ -463,7 +575,7 @@ public class MainActivity extends Activity {
             Log.d(TAG, "gia tri RSSI" + packetRssi());
             String data = temp.substring(0, 3);
             Log.i("gia tri temp 1", data);
-            if (data.equals("kn0") && packetRssi() > -300) {
+            if (data.equals("kn0") && packetRssi() > -65) {
                 Log.d(TAG, "Node con co the ket noi voi tin hieu muc cao");
                 String datakt1 = "kt1";
                 String idnodegui = temp.substring(3, 6);
@@ -475,8 +587,8 @@ public class MainActivity extends Activity {
                 }
             } else if (data.equals("tc1")) {
                 Log.i(TAG, "luu du lieu len server");
+                addnewnode(temp.substring(9,12), temp.substring(12,15));
             }
-            //Log.d(TAG,dataTemp);
         }
     }
 
@@ -500,7 +612,7 @@ public class MainActivity extends Activity {
             Log.d(TAG, "gia tri RSSI" + packetRssi());
             String data = temp.substring(0, 3);
             Log.i("gia tri temp 1", data);
-            if (data.equals("kn0") && packetRssi() > -300) {
+            if (data.equals("kn0") && packetRssi() < -65) {
                 Log.d(TAG, "Node con co the ket noi voi tin hieu muc cao");
                 String datakt2 = "kt2";
                 String idnodegui = temp.substring(3, 6);
@@ -512,6 +624,7 @@ public class MainActivity extends Activity {
                 }
             } else if (data.equals("tc1")) {
                 Log.i(TAG, "luu du lieu len server");
+                addnewnode(temp.substring(9,12), temp.substring(12,15));
             }
             //Log.d(TAG,dataTemp);
         }
@@ -550,6 +663,7 @@ public class MainActivity extends Activity {
                 }
             } else if (data.equals("tc1")) {
                 Log.i(TAG, "luu du lieu len server");
+                addnewnode(temp.substring(9,12), temp.substring(12,15));
             } else if (data.equals("kg1")) {
                 String dataid = temp.substring(3, 6);
                 if (dataid.equals(id)) {
@@ -560,7 +674,8 @@ public class MainActivity extends Activity {
         }
     }
 
-    /***************************************************************
+    /***************************************************************\
+     *
      *
      *                           LIBRARY CODE
      *
@@ -586,16 +701,6 @@ public class MainActivity extends Activity {
 
         // put in sleep mode
         sleep();
-/*
-
-        //Test Register
-        writeRegister(REG_FIFO_TX_BASE_ADDR, (byte) 0xab);
-        Log.d(TAG,"Test: " + Integer.toHexString(readRegister(REG_FIFO_TX_BASE_ADDR)& 0x000000FF));
-        writeRegister(REG_FIFO_RX_BASE_ADDR, (byte) 0x89);
-        Log.d(TAG,"Test: " + Integer.toHexString(readRegister(REG_FIFO_RX_BASE_ADDR)& 0x000000FF));
-        writeRegister(REG_FIFO_TX_BASE_ADDR, (byte) 0x69);
-        Log.d(TAG,"Test: " + Integer.toHexString(readRegister(REG_FIFO_TX_BASE_ADDR)& 0x000000FF));
-*/
 
         // set frequency
         setFrequency(434000000);
