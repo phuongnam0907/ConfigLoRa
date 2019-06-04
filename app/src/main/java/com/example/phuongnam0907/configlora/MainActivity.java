@@ -3,6 +3,7 @@ package com.example.phuongnam0907.configlora;
 import android.app.Activity;
 import android.app.TaskStackBuilder;
 import android.content.Context;
+import android.graphics.Color;
 import android.graphics.drawable.AnimationDrawable;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -18,9 +19,22 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.AxisBase;
+import com.github.mikephil.charting.components.XAxis;
+import com.github.mikephil.charting.components.YAxis;
+import com.github.mikephil.charting.data.Entry;
+import com.github.mikephil.charting.data.LineData;
+import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
+import com.github.mikephil.charting.utils.ColorTemplate;
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManager;
 import com.google.android.things.pio.SpiDevice;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -31,8 +45,10 @@ import java.net.URL;
 import java.security.Timestamp;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -62,6 +78,11 @@ public class MainActivity extends Activity {
     // Layout Design
     TextView ipg, wifig, idg, clkg, vlg;
     ImageButton btn;
+
+    private LineChart lineChart;
+    private LineData lineData;
+    ArrayList<Entry> entryArrayList;
+
     /// cac ham trong arduino
     public int state = 1;
     public long starttime = System.currentTimeMillis();
@@ -167,14 +188,12 @@ public class MainActivity extends Activity {
         final TextView vlg = findViewById(R.id.value);
         final TextView clkg = findViewById(R.id.clock);
 
-        //String date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
-
         final Handler someHandler = new Handler(getMainLooper());
         someHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 clkg.setText(new SimpleDateFormat("MMM dd - HH:mm:ss").format(Calendar.getInstance().getTime()));
-                vlg.setText(new SimpleDateFormat("ss").format(Calendar.getInstance().getTime()) + "\u00B0C");
+                vlg.setText(new SimpleDateFormat("ss").format(Calendar.getInstance().getTime()) + ".00\u00B0C");
                 someHandler.postDelayed(this, 1000);
             }
         }, 10);
@@ -189,14 +208,50 @@ public class MainActivity extends Activity {
         ipg.setText(ipAddress);
         //clkg.setText(date);
         //SET VALUE SENSOR
-//        final Handler handler = new Handler(getMainLooper());
-//        handler.postDelayed(new Runnable() {
-//            @Override
-//            public void run() {
-//                vlg.setText((CharSequence) Calendar.getInstance().getTime());
-//                //someHandler.postDelayed(this, 1000);
-//            }
-//        }, 1000);
+
+        lineChart = findViewById(R.id.chart);
+        lineData = new LineData(getLineDataValues("UART DATA - pH Value"));
+        lineData.setValueTextColor(Color.WHITE);
+        lineData.setValueTextSize(10f);
+        lineChart.getDescription().setEnabled(false);
+        lineChart.setTouchEnabled(true);
+        lineChart.setDragDecelerationFrictionCoef(0.9f);
+        lineChart.setDragEnabled(true);
+        lineChart.setScaleEnabled(true);
+        lineChart.setHighlightPerDragEnabled(true);
+
+        XAxis xAxis = lineChart.getXAxis();
+        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xAxis.setTextSize(10f);
+//        xAxis.setSpaceMin(0.1f);
+        xAxis.setSpaceMax(50f);
+        xAxis.setValueFormatter(new IAxisValueFormatter() {
+            @Override
+            public String getFormattedValue(float value, AxisBase axis) {
+                Date d = new Date(Float.valueOf(value*1000).longValue());
+                String date = new SimpleDateFormat("HH:mm").format(d);
+                return date;
+            }
+        });
+        xAxis.setLabelRotationAngle(0);
+        xAxis.setTextColor(Color.WHITE);
+        xAxis.setDrawAxisLine(true);
+        xAxis.setDrawGridLines(true);
+        xAxis.setCenterAxisLabels(false);
+
+        YAxis leftAxis = lineChart.getAxisLeft();
+        leftAxis.setPosition(YAxis.YAxisLabelPosition.OUTSIDE_CHART);
+        leftAxis.setTextColor(ColorTemplate.getHoloBlue());
+        leftAxis.setSpaceTop(30);
+        leftAxis.setSpaceBottom(30);
+        leftAxis.setDrawGridLines(true);
+        leftAxis.setGranularityEnabled(true);
+        leftAxis.setTextColor(Color.WHITE);
+
+        YAxis rightAxis = lineChart.getAxisRight();
+        rightAxis.setEnabled(false);
+
+        lineChart.setData(lineData);
 
         ImageButton btn = findViewById(R.id.info);
         btn.setOnClickListener(new View.OnClickListener() {
@@ -280,6 +335,41 @@ public class MainActivity extends Activity {
             }
         }
 
+    }
+
+    private List<ILineDataSet> getLineDataValues(String position) {
+
+        ArrayList<ILineDataSet> lineDataSets = null;
+
+        ArrayList<Entry> entryArrayList = new ArrayList<>();
+        int time = (int) (System.currentTimeMillis()/1000 - 6600);
+        entryArrayList.add(new Entry(time + 60*0,23f));
+        entryArrayList.add(new Entry(time + 60*2,24f));
+        entryArrayList.add(new Entry(time + 60*4,29f));
+        entryArrayList.add(new Entry(time + 60*6,30f));
+        entryArrayList.add(new Entry(time + 60*8,28f));
+        entryArrayList.add(new Entry(time + 60*10,28f));
+        entryArrayList.add(new Entry(time + 60*12,30f));
+        entryArrayList.add(new Entry(time + 60*14,29f));
+        entryArrayList.add(new Entry(time + 60*16,26f));
+        entryArrayList.add(new Entry(time + 60*18,25f));
+        LineDataSet lineDataSet = new LineDataSet(entryArrayList,position);
+
+        lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
+        lineDataSet.setValueTextSize(2f);
+        lineDataSet.setColor(Color.RED);
+        lineDataSet.setValueTextColor(Color.RED);
+        lineDataSet.setLineWidth(2f);
+        lineDataSet.setDrawCircles(true);
+        lineDataSet.setDrawValues(true);
+        lineDataSet.setFillColor(Color.RED);
+        lineDataSet.setHighLightColor(Color.rgb(255, 111, 222));
+        lineDataSet.setDrawCircleHole(true);
+
+        lineDataSets = new ArrayList<>();
+        lineDataSets.add(lineDataSet);
+
+        return lineDataSets;
     }
 
     /***************************************************************

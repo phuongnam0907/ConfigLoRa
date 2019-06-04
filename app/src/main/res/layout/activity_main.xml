@@ -72,14 +72,22 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="250dp"
+        android:layout_height="260dp"
         android:layout_marginLeft="2dp"
         android:layout_marginRight="2dp"
         android:orientation="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="219dp">
+            android:layout_height="230dp"
+            android:orientation="vertical">
+
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/chart"
+                android:layout_width="450dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="center">
+            </com.github.mikephil.charting.charts.LineChart>
 
         </LinearLayout>
 
@@ -112,7 +120,7 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="25dp"
         android:layout_marginLeft="2dp"
         android:layout_marginRight="2dp">
 
