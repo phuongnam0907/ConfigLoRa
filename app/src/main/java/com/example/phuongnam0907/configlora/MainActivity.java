@@ -32,6 +32,8 @@ import com.github.mikephil.charting.utils.ColorTemplate;
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManager;
 import com.google.android.things.pio.SpiDevice;
+import com.google.android.things.pio.UartDevice;
+import com.google.android.things.pio.UartDeviceCallback;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -44,6 +46,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.Timestamp;
 import java.text.DateFormat;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -76,12 +79,15 @@ import static java.lang.Thread.yield;
  */
 public class MainActivity extends Activity {
     // Layout Design
-    TextView ipg, wifig, idg, clkg, vlg;
+    TextView ipg, wifig, idg, clkg;
+    TextView vlg;
     ImageButton btn;
 
+    static final int MaxCount = 20;
     private LineChart lineChart;
     private LineData lineData;
     ArrayList<Entry> entryArrayList;
+    ArrayList<Float> floatArrayList;
 
     /// cac ham trong arduino
     public int state = 1;
@@ -100,6 +106,10 @@ public class MainActivity extends Activity {
     private String result = header_1;
     Timer updateTimer;
     Timestamp timestamp;
+
+    private UartDevice uartDevice;
+    private static final String UART_DEVICE_NAME = "UART0";
+    Handler mHandler = new Handler();
 
     private SpiDevice mDevice;
     private static final String TAG = MainActivity.class.getSimpleName();
@@ -193,7 +203,6 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 clkg.setText(new SimpleDateFormat("MMM dd - HH:mm:ss").format(Calendar.getInstance().getTime()));
-                vlg.setText(new SimpleDateFormat("ss").format(Calendar.getInstance().getTime()) + ".00\u00B0C");
                 someHandler.postDelayed(this, 1000);
             }
         }, 10);
@@ -208,6 +217,8 @@ public class MainActivity extends Activity {
         ipg.setText(ipAddress);
         //clkg.setText(date);
         //SET VALUE SENSOR
+        entryArrayList = new ArrayList<>();
+        floatArrayList = new ArrayList<Float>();
 
         lineChart = findViewById(R.id.chart);
         lineData = new LineData(getLineDataValues("UART DATA - pH Value"));
@@ -223,13 +234,11 @@ public class MainActivity extends Activity {
         XAxis xAxis = lineChart.getXAxis();
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
         xAxis.setTextSize(10f);
-//        xAxis.setSpaceMin(0.1f);
-        xAxis.setSpaceMax(50f);
         xAxis.setValueFormatter(new IAxisValueFormatter() {
             @Override
             public String getFormattedValue(float value, AxisBase axis) {
-                Date d = new Date(Float.valueOf(value*1000).longValue());
-                String date = new SimpleDateFormat("HH:mm").format(d);
+                Date d = new Date(Float.valueOf(value).longValue());
+                String date = new SimpleDateFormat("HH:mm:ss").format(d);
                 return date;
             }
         });
@@ -270,6 +279,15 @@ public class MainActivity extends Activity {
         PeripheralManager manager = PeripheralManager.getInstance();
         Log.d(TAG, "List of Devices support SPI : " + manager.getSpiBusList());
         try {
+            List<String> deviceList = manager.getUartDeviceList();
+            if (deviceList.isEmpty()) {
+                Log.i(TAG, "No UART port available on this device.");
+            } else {
+                Log.i(TAG, "List of available devices: " + deviceList);
+            }
+            uartDevice = manager.openUartDevice(UART_DEVICE_NAME);
+            configureUartFrame(uartDevice);
+
             pinReset = manager.openGpio("BCM17");
             pinD0 = manager.openGpio("BCM4");
             pinCSS = manager.openGpio("BCM25");
@@ -293,6 +311,7 @@ public class MainActivity extends Activity {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        onStart();
     }
 
     @Override
@@ -335,41 +354,156 @@ public class MainActivity extends Activity {
             }
         }
 
+        if (uartDevice != null) {
+            try {
+                uartDevice.close();
+                uartDevice = null;
+            } catch (IOException e) {
+                Log.w(TAG, "Unable to close UART device", e);
+            }
+        }
     }
+
+//    @Override
+//    protected void onStart() {
+//        super.onStart();
+//        // Begin listening for interrupt events
+//        try {
+//            uartDevice.registerUartDeviceCallback(mUartCallback);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
+//
+//    @Override
+//    protected void onStop() {
+//        super.onStop();
+//        // Interrupt events no longer necessary
+//        uartDevice.unregisterUartDeviceCallback(mUartCallback);
+//    }
+    @Override
+    protected void onStart() {
+        loopR.run();
+        super.onStart();
+//        try {
+//            uartDevice.registerUartDeviceCallback(mUartCallback);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+    }
+
+
+    @Override
+    protected void onStop() {
+        mHandler.removeCallbacks(loopR);
+        mHandler.removeCallbacksAndMessages(null);
+        uartDevice.unregisterUartDeviceCallback(mUartCallback);
+        super.onStop();
+    }
+
+    private Runnable loopR = new Runnable() {
+        public void run() {
+            try {
+                lineData = new LineData(getLineDataValues("UART DATA - pH Values"));
+//                vlg.setText(new SimpleDateFormat("ss").format(Calendar.getInstance().getTime()) + ".00\u00B0C");
+//                Log.d(TAG, "hhhh");
+                final TextView vlg = findViewById(R.id.value);
+                if (entryArrayList.size() > MaxCount) entryArrayList.remove(0);
+                Float value = Float.valueOf(System.currentTimeMillis()%20);
+                vlg.setText(Float.toString(value));
+                entryArrayList.add(new Entry((int) System.currentTimeMillis(),value));
+
+//                lineChart.setData(lineData);
+
+                mHandler.postDelayed(loopR, 100);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    };
 
     private List<ILineDataSet> getLineDataValues(String position) {
 
         ArrayList<ILineDataSet> lineDataSets = null;
 
-        ArrayList<Entry> entryArrayList = new ArrayList<>();
-        int time = (int) (System.currentTimeMillis()/1000 - 6600);
-        entryArrayList.add(new Entry(time + 60*0,23f));
-        entryArrayList.add(new Entry(time + 60*2,24f));
-        entryArrayList.add(new Entry(time + 60*4,29f));
-        entryArrayList.add(new Entry(time + 60*6,30f));
-        entryArrayList.add(new Entry(time + 60*8,28f));
-        entryArrayList.add(new Entry(time + 60*10,28f));
-        entryArrayList.add(new Entry(time + 60*12,30f));
-        entryArrayList.add(new Entry(time + 60*14,29f));
-        entryArrayList.add(new Entry(time + 60*16,26f));
-        entryArrayList.add(new Entry(time + 60*18,25f));
+//        ArrayList<Entry> entryArrayList = new ArrayList<>();
+//        int time = (int) (System.currentTimeMillis()/1000 - 6600);
+
+//        final TextView vlg = findViewById(R.id.value);
+//        vlg.setText(new SimpleDateFormat("ss").format(Calendar.getInstance().getTime()) + ".00\u00B0C");
+
+
+//        entryArrayList.add(new Entry(0,0f));
         LineDataSet lineDataSet = new LineDataSet(entryArrayList,position);
 
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
-        lineDataSet.setValueTextSize(2f);
+        lineDataSet.setValueTextSize(10f);
         lineDataSet.setColor(Color.RED);
-        lineDataSet.setValueTextColor(Color.RED);
+        lineDataSet.setValueTextColor(Color.WHITE);
         lineDataSet.setLineWidth(2f);
         lineDataSet.setDrawCircles(true);
+        lineDataSet.setCircleColor(Color.RED);
         lineDataSet.setDrawValues(true);
-        lineDataSet.setFillColor(Color.RED);
+        lineDataSet.setFillColor(Color.YELLOW);
         lineDataSet.setHighLightColor(Color.rgb(255, 111, 222));
         lineDataSet.setDrawCircleHole(true);
 
         lineDataSets = new ArrayList<>();
         lineDataSets.add(lineDataSet);
 
+        lineChart.setData(lineData);
+
         return lineDataSets;
+    }
+
+    private UartDeviceCallback mUartCallback = new UartDeviceCallback() {
+        @Override
+        public boolean onUartDeviceDataAvailable(UartDevice uart) {
+            // Read available data from the UART device
+            try {
+                readUartBuffer(uart);
+            } catch (IOException e) {
+                Log.w(TAG, "Unable to access UART device", e);
+            }
+
+            // Continue listening for more interrupts
+            return true;
+        }
+
+        @Override
+        public void onUartDeviceError(UartDevice uart, int error) {
+            Log.w(TAG, uart + ": Error event " + error);
+        }
+    };
+
+    private void readUartBuffer(UartDevice uart) throws IOException {
+        // Maximum amount of data to read at one time
+        final int maxCount = 100;
+        byte[] buffer = new byte[maxCount];
+
+        int count;
+//        while ((count = uart.read(buffer, buffer.length)) > 3) {
+//            Log.d(TAG, "Read " + count + " bytes from peripheral");
+//            Integer valueInt = (buffer[2]<<8&0xFF00) ^ (buffer[3]&0x00FF);
+//            Float value = Float.parseFloat(String.valueOf(valueInt))*100/1024;
+//            if (entryArrayList.size() > MaxCount) entryArrayList.remove(0);
+//            entryArrayList.add(new Entry((int) System.currentTimeMillis(),value));
+//            final TextView vlg = findViewById(R.id.value);
+//            vlg.setText(Float.toString(value));
+//            try {
+//                Thread.sleep(10000);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//        }
+    }
+
+    public void configureUartFrame(UartDevice uart) throws IOException {
+        // Configure the UART port
+        uart.setBaudrate(9600);
+        uart.setDataSize(8);
+        uart.setParity(UartDevice.PARITY_NONE);
+        uart.setStopBits(1);
     }
 
     /***************************************************************
