@@ -83,6 +83,8 @@ public class MainActivity extends Activity {
     TextView vlg;
     ImageButton btn;
 
+    static int muc = -70;
+
     static final int MaxCount = 20;
     private LineChart lineChart;
     private LineData lineData;
@@ -218,7 +220,7 @@ public class MainActivity extends Activity {
         //clkg.setText(date);
         //SET VALUE SENSOR
         entryArrayList = new ArrayList<>();
-        floatArrayList = new ArrayList<Float>();
+        entryArrayList.add(new Entry(0,0f));
 
         lineChart = findViewById(R.id.chart);
         lineData = new LineData(getLineDataValues("UART DATA - pH Value"));
@@ -364,32 +366,15 @@ public class MainActivity extends Activity {
         }
     }
 
-//    @Override
-//    protected void onStart() {
-//        super.onStart();
-//        // Begin listening for interrupt events
-//        try {
-//            uartDevice.registerUartDeviceCallback(mUartCallback);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//    }
-//
-//    @Override
-//    protected void onStop() {
-//        super.onStop();
-//        // Interrupt events no longer necessary
-//        uartDevice.unregisterUartDeviceCallback(mUartCallback);
-//    }
     @Override
     protected void onStart() {
         loopR.run();
         super.onStart();
-//        try {
-//            uartDevice.registerUartDeviceCallback(mUartCallback);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
+        try {
+            uartDevice.registerUartDeviceCallback(mUartCallback);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -413,9 +398,9 @@ public class MainActivity extends Activity {
                 vlg.setText(Float.toString(value));
                 entryArrayList.add(new Entry((int) System.currentTimeMillis(),value));
 
-//                lineChart.setData(lineData);
+                lineChart.setData(lineData);
 
-                mHandler.postDelayed(loopR, 100);
+                mHandler.postDelayed(loopR, 10000);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -433,7 +418,6 @@ public class MainActivity extends Activity {
 //        vlg.setText(new SimpleDateFormat("ss").format(Calendar.getInstance().getTime()) + ".00\u00B0C");
 
 
-//        entryArrayList.add(new Entry(0,0f));
         LineDataSet lineDataSet = new LineDataSet(entryArrayList,position);
 
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
@@ -637,7 +621,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i <= 99; i++) {
             if (idnodecon[i][0] == "1" && idnodecon[i][1].equals(temp.substring(6, 9))) {
                 Log.i("du lieu nhan duoc tu node con", temp);
-                result = result.concat(temp.substring(6,9));// id node
+                result = result.concat(temp.substring(9,12));// id node
                 result+="\",\"phValue\":0,\"tempValue\":";
                 result =  result.concat(temp.substring(12,14)); //nhiet do
 
@@ -799,7 +783,7 @@ public class MainActivity extends Activity {
             Log.d(TAG, "gia tri RSSI" + packetRssi());
             String data = temp.substring(0, 3);
             Log.i("gia tri temp 1", data);
-            if (data.equals("kn0") && packetRssi() > -65) {
+            if (data.equals("kn0") && packetRssi() > muc) {
                 Log.d(TAG, "Node con co the ket noi voi tin hieu muc cao");
                 String datakt1 = "kt1";
                 String idnodegui = temp.substring(3, 6);
@@ -836,7 +820,7 @@ public class MainActivity extends Activity {
             Log.d(TAG, "gia tri RSSI" + packetRssi());
             String data = temp.substring(0, 3);
             Log.i("gia tri temp 1", data);
-            if (data.equals("kn0") && packetRssi() < -65) {
+            if (data.equals("kn0") && packetRssi() < muc) {
                 Log.d(TAG, "Node con co the ket noi voi tin hieu muc cao");
                 String datakt2 = "kt2";
                 String idnodegui = temp.substring(3, 6);
