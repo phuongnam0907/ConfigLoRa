@@ -9,6 +9,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.support.constraint.ConstraintLayout;
 import android.text.format.Formatter;
 import android.util.Log;
@@ -27,8 +28,10 @@ import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.formatter.IAxisValueFormatter;
+import com.github.mikephil.charting.formatter.IValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 import com.github.mikephil.charting.utils.ColorTemplate;
+import com.github.mikephil.charting.utils.ViewPortHandler;
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManager;
 import com.google.android.things.pio.SpiDevice;
@@ -42,6 +45,8 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.Timestamp;
@@ -53,6 +58,8 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.SimpleTimeZone;
+import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -95,22 +102,21 @@ public class MainActivity extends Activity {
     public int state = 1;
     public long starttime = System.currentTimeMillis();
     public String[][] idnodecon = new String[100][4];
-    public String id = "102";
+    public String id = "101";
     public int idgateway = 1;
     public int bac = 1;
     public int idnode = 1;
     public int sonodecon = 1;
     public int demketnoimuc2 = 0;
     public int demnhandulieu = 0;
-    ///
-    //private String address = "http://192.168.97.1/rpi3/backend/";
+
     private String header_1 ="[{\"Gateway\":\""+ id +"\",\"Node\":\"";
     private String result = header_1;
-    Timer updateTimer;
-    Timestamp timestamp;
 
-    private UartDevice uartDevice;
-    private static final String UART_DEVICE_NAME = "UART0";
+    private HandlerThread mInputThread;
+    private Handler mInputHandler;
+
+    private UartDevice mLoopbackDevice;
     Handler mHandler = new Handler();
 
     private SpiDevice mDevice;
@@ -186,12 +192,19 @@ public class MainActivity extends Activity {
     private static final boolean LOW = false;
     private static final boolean HIGH = true;
 
+    private Runnable mTransferUartRunnable = new Runnable() {
+        @Override
+        public void run() {
+            transferUartData();
+        }
+    };
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        addnewgateway(id);
         getActionBar().hide();
 
         TextView wifig = findViewById(R.id.wifi);
@@ -204,7 +217,7 @@ public class MainActivity extends Activity {
         someHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                clkg.setText(new SimpleDateFormat("MMM dd - HH:mm:ss").format(Calendar.getInstance().getTime()));
+                clkg.setText(new SimpleDateFormat("MMM dd - HH:mm:ss").format(Calendar.getInstance().getTimeInMillis()+25200000));
                 someHandler.postDelayed(this, 1000);
             }
         }, 10);
@@ -217,10 +230,11 @@ public class MainActivity extends Activity {
         idg.setText("ID: " +id);
         wifig.setText(wifiInfo.getSSID().substring(1,wifiInfo.getSSID().length()-1));
         ipg.setText(ipAddress);
-        //clkg.setText(date);
+
         //SET VALUE SENSOR
         entryArrayList = new ArrayList<>();
-        entryArrayList.add(new Entry(0,0f));
+        floatArrayList = new ArrayList<>();
+        //entryArrayList.add(new Entry(0,0f));
 
         lineChart = findViewById(R.id.chart);
         lineData = new LineData(getLineDataValues("UART DATA - pH Value"));
@@ -262,7 +276,7 @@ public class MainActivity extends Activity {
         YAxis rightAxis = lineChart.getAxisRight();
         rightAxis.setEnabled(false);
 
-        lineChart.setData(lineData);
+        //lineChart.setData(lineData);
 
         ImageButton btn = findViewById(R.id.info);
         btn.setOnClickListener(new View.OnClickListener() {
@@ -281,15 +295,6 @@ public class MainActivity extends Activity {
         PeripheralManager manager = PeripheralManager.getInstance();
         Log.d(TAG, "List of Devices support SPI : " + manager.getSpiBusList());
         try {
-            List<String> deviceList = manager.getUartDeviceList();
-            if (deviceList.isEmpty()) {
-                Log.i(TAG, "No UART port available on this device.");
-            } else {
-                Log.i(TAG, "List of available devices: " + deviceList);
-            }
-            uartDevice = manager.openUartDevice(UART_DEVICE_NAME);
-            configureUartFrame(uartDevice);
-
             pinReset = manager.openGpio("BCM17");
             pinD0 = manager.openGpio("BCM4");
             pinCSS = manager.openGpio("BCM25");
@@ -313,6 +318,20 @@ public class MainActivity extends Activity {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        Log.d(TAG, "Loopback Created");
+
+        mInputThread = new HandlerThread("InputThread");
+        mInputThread.start();
+        mInputHandler = new Handler(mInputThread.getLooper());
+
+        try {
+            openUart("UART0", 115200);
+            mInputHandler.post(mTransferUartRunnable);
+        } catch (IOException e) {
+            Log.e(TAG, "Unable to open UART device", e);
+        }
+
         onStart();
     }
 
@@ -356,13 +375,11 @@ public class MainActivity extends Activity {
             }
         }
 
-        if (uartDevice != null) {
-            try {
-                uartDevice.close();
-                uartDevice = null;
-            } catch (IOException e) {
-                Log.w(TAG, "Unable to close UART device", e);
-            }
+        Log.d(TAG, "Loopback Destroyed");
+        try {
+            closeUart();
+        } catch (IOException e) {
+            Log.e(TAG, "Error closing UART device:", e);
         }
     }
 
@@ -371,7 +388,7 @@ public class MainActivity extends Activity {
         loopR.run();
         super.onStart();
         try {
-            uartDevice.registerUartDeviceCallback(mUartCallback);
+            mLoopbackDevice.registerUartDeviceCallback(mCallback);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -382,23 +399,19 @@ public class MainActivity extends Activity {
     protected void onStop() {
         mHandler.removeCallbacks(loopR);
         mHandler.removeCallbacksAndMessages(null);
-        uartDevice.unregisterUartDeviceCallback(mUartCallback);
+        mLoopbackDevice.unregisterUartDeviceCallback(mCallback);
         super.onStop();
     }
 
     private Runnable loopR = new Runnable() {
         public void run() {
             try {
-                lineData = new LineData(getLineDataValues("UART DATA - pH Values"));
-//                vlg.setText(new SimpleDateFormat("ss").format(Calendar.getInstance().getTime()) + ".00\u00B0C");
-//                Log.d(TAG, "hhhh");
-                final TextView vlg = findViewById(R.id.value);
-                if (entryArrayList.size() > MaxCount) entryArrayList.remove(0);
-                Float value = Float.valueOf(System.currentTimeMillis()%20);
-                vlg.setText(Float.toString(value));
-                entryArrayList.add(new Entry((int) System.currentTimeMillis(),value));
-
-                lineChart.setData(lineData);
+//                lineData = new LineData(getLineDataValues("UART DATA - pH Values"));
+//                if (entryArrayList.size() > MaxCount) entryArrayList.remove(0);
+//                Float value = Float.valueOf(System.currentTimeMillis()%20);
+//                entryArrayList.add(new Entry((int) System.currentTimeMillis(),value));
+//
+//                lineChart.setData(lineData);
 
                 mHandler.postDelayed(loopR, 10000);
             } catch (Exception e) {
@@ -429,6 +442,15 @@ public class MainActivity extends Activity {
         lineDataSet.setCircleColor(Color.RED);
         lineDataSet.setDrawValues(true);
         lineDataSet.setFillColor(Color.YELLOW);
+        lineDataSet.setValueFormatter(new IValueFormatter() {
+            @Override
+            public String getFormattedValue(float value, Entry entry, int dataSetIndex, ViewPortHandler viewPortHandler) {
+                DecimalFormat df = new DecimalFormat("0.00");
+                String num = df.format(value);
+                return num;
+            }
+        });
+
         lineDataSet.setHighLightColor(Color.rgb(255, 111, 222));
         lineDataSet.setDrawCircleHole(true);
 
@@ -440,55 +462,99 @@ public class MainActivity extends Activity {
         return lineDataSets;
     }
 
-    private UartDeviceCallback mUartCallback = new UartDeviceCallback() {
+    /***************************************************************
+     *
+     *                      CONFIG UART DATA
+     *
+     ***************************************************************/
+
+    private UartDeviceCallback mCallback = new UartDeviceCallback() {
         @Override
         public boolean onUartDeviceDataAvailable(UartDevice uart) {
-            // Read available data from the UART device
-            try {
-                readUartBuffer(uart);
-            } catch (IOException e) {
-                Log.w(TAG, "Unable to access UART device", e);
-            }
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    transferUartData();
+                }
+            });
 
-            // Continue listening for more interrupts
             return true;
         }
-
         @Override
         public void onUartDeviceError(UartDevice uart, int error) {
             Log.w(TAG, uart + ": Error event " + error);
         }
     };
 
-    private void readUartBuffer(UartDevice uart) throws IOException {
-        // Maximum amount of data to read at one time
-        final int maxCount = 100;
-        byte[] buffer = new byte[maxCount];
 
-        int count;
-//        while ((count = uart.read(buffer, buffer.length)) > 3) {
-//            Log.d(TAG, "Read " + count + " bytes from peripheral");
-//            Integer valueInt = (buffer[2]<<8&0xFF00) ^ (buffer[3]&0x00FF);
-//            Float value = Float.parseFloat(String.valueOf(valueInt))*100/1024;
-//            if (entryArrayList.size() > MaxCount) entryArrayList.remove(0);
-//            entryArrayList.add(new Entry((int) System.currentTimeMillis(),value));
-//            final TextView vlg = findViewById(R.id.value);
-//            vlg.setText(Float.toString(value));
-//            try {
-//                Thread.sleep(10000);
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//        }
+    private void openUart(String name, int baudRate) throws IOException {
+        mLoopbackDevice = PeripheralManager.getInstance().openUartDevice(name);
+        // Configure the UART
+        mLoopbackDevice.setBaudrate(baudRate);
+        mLoopbackDevice.setDataSize(8);
+        mLoopbackDevice.setParity(UartDevice.PARITY_NONE);
+        mLoopbackDevice.setStopBits(1);
+
+        mLoopbackDevice.registerUartDeviceCallback(mInputHandler, mCallback);
     }
 
-    public void configureUartFrame(UartDevice uart) throws IOException {
-        // Configure the UART port
-        uart.setBaudrate(9600);
-        uart.setDataSize(8);
-        uart.setParity(UartDevice.PARITY_NONE);
-        uart.setStopBits(1);
+    private void closeUart() throws IOException {
+        if (mLoopbackDevice != null) {
+            mLoopbackDevice.unregisterUartDeviceCallback(mCallback);
+            try {
+                mLoopbackDevice.close();
+            } finally {
+                mLoopbackDevice = null;
+            }
+        }
     }
+
+    private void transferUartData() {
+        if (mLoopbackDevice != null) {
+            // Loop until there is no more data in the RX buffer.
+            try {
+                byte[] buffer = new byte[10];
+                int read;
+                while ((read = mLoopbackDevice.read(buffer, buffer.length)) > 3) {
+                    //String temp = " "+ Integer.toString(buffer[0]) + " " + Integer.toString(buffer[1]) + " " + Integer.toString(buffer[2]) + " " + Integer.toString(buffer[3]);
+                    int intbit = (buffer[3] << 24) | ((buffer[2] & 0xff) << 16) | ((buffer[1] & 0xff) << 8) | (buffer   [0] & 0xff);
+                    float f = Float.intBitsToFloat(intbit);
+//                    DecimalFormat df = new DecimalFormat("0.##");
+                    BigDecimal bd = new BigDecimal(f).setScale(2, RoundingMode.HALF_UP);
+                    //Log.d(TAG, "Read " + read + " bytes from peripheral: " + temp + " - phValue : " + f);
+                    TextView vlg = findViewById(R.id.value);
+//                    vlg.setText(Float.toString(Float.parseFloat(df.format(f))));
+
+                    lineData = new LineData(getLineDataValues("UART DATA - pH Values"));
+
+                    if (entryArrayList.size() > MaxCount) {
+                        entryArrayList.remove(0);
+                        floatArrayList.remove(0);
+                    }
+                    entryArrayList.add(new Entry((int) System.currentTimeMillis()+10329000,bd.floatValue()));
+                    floatArrayList.add(bd.floatValue());
+                    vlg.setText(getAverage(floatArrayList));
+                    lineChart.setData(lineData);
+
+                }
+            } catch (IOException e) {
+                Log.w(TAG, "Unable to transfer data over UART", e);
+            }
+        }
+    }
+
+    private String getAverage(ArrayList<Float> floats){
+        if (floats.size() == 0) return "Null";
+        else {
+            float temp = 0;
+            for (int i = 0; i < floats.size(); i++){
+                temp += floats.get(i)/floats.size();
+            }
+            DecimalFormat df = new DecimalFormat("0.0000");
+            return String.valueOf(df.format(temp));
+        }
+    }
+
 
     /***************************************************************
      *
@@ -553,6 +619,7 @@ public class MainActivity extends Activity {
      ***************************************************************/
     public void ketnoimuc1() {
         //create gw
+        Log.d(TAG, "chuyen sang ket noi muc 1");
         LoRaReceiveKetnoimuc1();
     }
 
@@ -581,12 +648,12 @@ public class MainActivity extends Activity {
 
         long millis = System.currentTimeMillis();
         int seconds = (int) (millis / 1000);
-        if (seconds % 600 == 0) {
-            Log.d(TAG,"thuc hien ngu");
-            String datangu = "ngu";
-            datangu=datangu.concat(id);
-            LoRaSender(datangu);
-        }
+//        if (seconds % 600 == 0) {
+//            Log.d(TAG,"thuc hien ngu");
+//            String datangu = "ngu";
+//            datangu=datangu.concat(id);
+//            LoRaSender(datangu);
+//        }
         LoRaReceiveNhandulieu();
     }
 
@@ -614,6 +681,7 @@ public class MainActivity extends Activity {
                 i = 101;
             }
         }
+        Log.i(TAG, "dia chi node con: " + temp.substring(6,9));
         addnewnode(temp.substring(6,9), temp.substring(3,6));
     }
 
@@ -652,7 +720,7 @@ public class MainActivity extends Activity {
                     conn.setRequestProperty("Accept","application/json");
                     conn.setDoOutput(true);
                     conn.setDoInput(true);
-                    //conn.connect();
+//                    conn.connect();
 
                     DataOutputStream os = new DataOutputStream(conn.getOutputStream());
 
@@ -687,6 +755,19 @@ public class MainActivity extends Activity {
 
         thread.start();
     }
+
+    private void addnewgateway(final String cons){
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String linkadd = "http://192.168.97.1/rpi3/backend/node.php?method=addgateway&gateway=" + cons;
+                sendRequest(linkadd);
+            }
+        });
+
+        thread.start();
+    }
+
     private void addnewnode(final String con, final String cha){
         Thread thread = new Thread(new Runnable() {
             @Override
@@ -709,7 +790,7 @@ public class MainActivity extends Activity {
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Content-Type", "text/plain");
             conn.setRequestProperty("charset", "utf-8");
-            //conn.connect();
+//            conn.connect();
             BufferedReader in=new BufferedReader(new InputStreamReader(conn.getInputStream()));
             StringBuffer sb = new StringBuffer("");
             String line="";
